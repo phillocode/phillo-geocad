@@ -1,20 +1,20 @@
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Phillo GeoCAD v8 WMS Optimized</title>
+<title>Phillo GeoCAD v9 WMS Stable</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font:14px system-ui,Arial;background:#101d26;color:#eef7f8}header{height:58px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#142b35;border-bottom:1px solid #31515a}.layout{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 58px)}aside{padding:15px;overflow:auto;border-right:1px solid #34505a}#map{height:100%;min-height:460px}h1{font-size:19px;margin:0}h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9ec8d0;margin:18px 0 9px}.line{display:flex;align-items:center;gap:8px;margin:9px 0}button,input,select{font:inherit}button{background:#244552;color:#fff;border:1px solid #4b7884;padding:9px 10px;border-radius:7px;cursor:pointer}button:hover{background:#32606e}.full{width:100%;margin:4px 0}.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}.active{background:#0c948e!important;border-color:#52e5d3!important}input[type=text]{width:100%;padding:9px;border-radius:6px;border:1px solid #53727b;background:#17333e;color:#fff}.hint{font-size:12px;line-height:1.45;color:#aac3c8}.notice{background:#1b3943;border-left:3px solid #21c1b4;padding:10px;margin:12px 0;font-size:12px;line-height:1.45}.warn{border-left-color:#e6b34a}.status{position:absolute;left:335px;bottom:12px;background:#142b35ed;padding:8px 11px;border-radius:7px;z-index:10;max-width:calc(100% - 355px)}.keybox{background:#193640;padding:10px;border-radius:8px}.diag{font-size:11px;background:#0c1820;padding:9px;border-radius:7px;line-height:1.45;word-break:break-word}.ok{color:#6fe3c8}.bad{color:#ff9e96}@media(max-width:720px){.layout{grid-template-columns:1fr;height:auto}.status{position:fixed;left:8px;right:8px;bottom:8px;max-width:none}#map{height:62vh}aside{border-right:0}}
 </style></head><body>
-<header><h1>◈ Phillo GeoCAD <small>· v8 WMS Optimized</small></h1><small>Google · Catasto · GPS · CAD</small></header>
+<header><h1>◈ Phillo GeoCAD <small>· v9 WMS Stable</small></h1><small>Google · Catasto · GPS · CAD</small></header>
 <div class="layout"><aside>
 <h2>Google Maps Demo Key</h2><div class="keybox"><input id="apikey" type="text" autocomplete="off" placeholder="Incolla qui la Demo Key"><button id="load" class="full">Carica Google Maps</button><div class="hint">La chiave non viene salvata nel file.</div></div>
 <h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
 <h2>Catasto</h2><label class="line"><input id="cadastre" type="checkbox" checked disabled> Catasto Agenzia Entrate</label><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label><button id="onlycat" class="full" disabled>Mostra solo catasto</button><button id="reloadcat" class="full" disabled>Ricarica catasto</button>
-<div class="hint">Particelle e fabbricati da zoom 17; vestizioni da zoom 18. La v8 adatta automaticamente i layer alla scala.</div>
+<div class="hint">La v9 usa il layer catastale composito ufficiale e ritenta automaticamente le tile che il servizio non restituisce al primo tentativo.</div>
 <div id="diag" class="diag">Diagnostica WMS: non avviata.</div>
 <h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
 <h2>Disegno CAD</h2><div class="tools"><button data-tool="point" disabled>⊕ Punto</button><button data-tool="line" disabled>╱ Linea</button><button data-tool="polygon" disabled>⬡ Poligono</button><button id="clear" disabled>⌫ Cancella tutto</button></div><div id="count" class="hint">0 elementi</div>
 <h2>Esportazione TOKNAV</h2><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
-<div class="notice"><b>Correzione v8.</b> Le richieste catastali sono aggregate in una sola immagine WMS per tile e i layer vengono scelti automaticamente in base allo zoom, riducendo il numero di richieste e gli errori transitori.</div>
+<div class="notice"><b>Correzione v9.</b> Uso del layer composito Cartografia_Catastale con retry automatico fino a 2 volte per le tile che falliscono. La diagnostica distingue errori finali, retry e recuperi.</div>
 <div class="notice warn"><b>Nota tecnica.</b> Google lavora in Web Mercator, mentre il Catasto non pubblica EPSG:3857. Questa versione usa richieste UTM per rendere visibile il catasto; per un allineamento cartografico rigoroso predisporremo poi un piccolo proxy/reproiettore sul server.</div>
 <div class="hint" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)</div></aside><div id="map"></div></div><div id="status" class="status">Incolla la Demo Key e premi “Carica Google Maps”.</div>
 <script src="https://cdn.jsdelivr.net/npm/proj4@2.12.1/dist/proj4.js"></script>
@@ -25,14 +25,8 @@ proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
 let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null;
-let cadOpacity=.95,tileLoads=0,tileErrors=0,lastTileUrl='',lastLayers='';
-const WMS_LAYER_LABELS={'CP.CadastralZoning':'Mappe','CP.CadastralParcel':'Particelle','fabbricati':'Fabbricati','vestizioni':'Vestizioni','strade':'Strade','acque':'Acque'};
-function layersForZoom(z){
-  if(z>=18)return ['acque','strade','CP.CadastralParcel','fabbricati','vestizioni'];
-  if(z>=17)return ['acque','strade','CP.CadastralParcel','fabbricati'];
-  if(z>=14)return ['CP.CadastralZoning','acque','strade'];
-  return ['CP.CadastralZoning'];
-}
+let cadOpacity=.95,tileLoads=0,tileErrors=0,tileRetries=0,tileRecovered=0,lastTileUrl='';
+const WMS_LAYER='Cartografia_Catastale';
 const $=id=>document.getElementById(id),status=t=>$('status').textContent=t;
 function enableUI(){document.querySelectorAll('button[disabled],input[disabled]').forEach(x=>x.disabled=false)}
 function loadGoogle(){const key=$('apikey').value.trim();if(!key){status('Inserisci prima la Demo Key.');return}if(window.google?.maps){initMap();return}window.__philloInit=initMap;const s=document.createElement('script');s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(key)+'&callback=__philloInit&loading=async';s.async=true;s.onerror=()=>status('Google Maps non è stato caricato. Controlla la Demo Key e la connessione.');document.head.appendChild(s);status('Caricamento Google Maps…')}
@@ -46,21 +40,19 @@ function wmsTileUrl(coord,z){
   const corners=[[b.west,b.south],[b.west,b.north],[b.east,b.south],[b.east,b.north]].map(p=>proj4('EPSG:4326',crs,p));
   const xs=corners.map(p=>p[0]),ys=corners.map(p=>p[1]);
   const bbox=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
-  const layers=layersForZoom(z);
-  lastLayers=layers.join(',');
   const q=new URLSearchParams({
     language:'ita',SERVICE:'WMS',VERSION:'1.1.1',REQUEST:'GetMap',
-    LAYERS:lastLayers,STYLES:layers.map(()=> '').join(','),
+    LAYERS:WMS_LAYER,STYLES:'',
     FORMAT:'image/png',TRANSPARENT:'TRUE',SRS:crs,WIDTH:'256',HEIGHT:'256',
-    BBOX:bbox.join(','),TILED:'TRUE'
+    BBOX:bbox.join(',')
   });
   lastTileUrl='https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php?'+q.toString();
   return lastTileUrl;
 }
 function updateDiag(){
   const cls=tileErrors?'bad':'ok';
-  const labels=lastLayers?lastLayers.split(',').map(l=>WMS_LAYER_LABELS[l]||l).join(' · '):'—';
-  $('diag').innerHTML='Diagnostica WMS v8: <span class="'+cls+'">'+tileLoads+' tile caricate · '+tileErrors+' errori</span><br>Layer attivi: '+labels+'<br>Ultima richiesta: '+(lastTileUrl||'—');
+  $('diag').innerHTML='Diagnostica WMS v9: <span class="'+cls+'">'+tileLoads+' tile caricate · '+tileErrors+' errori finali</span><br>'+
+    'Retry: '+tileRetries+' · recuperate al retry: '+tileRecovered+'<br>Layer: Cartografia Catastale<br>Ultima richiesta: '+(lastTileUrl||'—');
 }
 function makeCadastreMapType(){
   return {
@@ -71,18 +63,43 @@ function makeCadastreMapType(){
       const img=doc.createElement('img');
       img.width=256;img.height=256;img.alt='';img.decoding='async';
       img.style.cssText='position:absolute;inset:0;width:256px;height:256px;display:block;pointer-events:none;opacity:'+cadOpacity;
-      img.src=wmsTileUrl(coord,zoom);
-      img.onload=()=>{tileLoads++;updateDiag()};
-      img.onerror=()=>{tileErrors++;updateDiag()};
       div.appendChild(img);
+      const baseUrl=wmsTileUrl(coord,zoom);
+      let attempt=0;
+      const load=()=>{
+        if(div._released)return;
+        img.src=baseUrl+(attempt?'&PHILLO_RETRY='+attempt:'');
+      };
+      img.onload=()=>{
+        if(div._released)return;
+        tileLoads++;
+        if(attempt>0)tileRecovered++;
+        updateDiag();
+      };
+      img.onerror=()=>{
+        if(div._released)return;
+        if(attempt<2){
+          attempt++;
+          tileRetries++;
+          updateDiag();
+          setTimeout(load,350*attempt+Math.floor(Math.random()*250));
+        }else{
+          tileErrors++;
+          updateDiag();
+        }
+      };
+      load();
       return div;
     },
-    releaseTile(tile){while(tile.firstChild)tile.removeChild(tile.firstChild)}
+    releaseTile(tile){
+      tile._released=true;
+      while(tile.firstChild)tile.removeChild(tile.firstChild);
+    }
   };
 }
 function installCadastre(){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);updateDiag()}
 function setCad(on){if(!map)return;if(on){if(map.overlayMapTypes.getLength()===0){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay)}}else map.overlayMapTypes.clear()}
-function reloadCad(){tileLoads=0;tileErrors=0;lastTileUrl='';lastLayers='';map.overlayMapTypes.clear();cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);$('cadastre').checked=true;updateDiag();status('Catasto ricaricato.')}
+function reloadCad(){tileLoads=0;tileErrors=0;tileRetries=0;tileRecovered=0;lastTileUrl='';map.overlayMapTypes.clear();cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);$('cadastre').checked=true;updateDiag();status('Catasto ricaricato.')}
 $('cadastre').onchange=e=>setCad(e.target.checked);$('opacity').oninput=e=>{cadOpacity=+e.target.value/100;$('opval').textContent=e.target.value+'%';reloadCad()};$('reloadcat').onclick=reloadCad;
 $('sat').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('satellite')};$('road').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('roadmap')};$('hybrid').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('hybrid')};$('none').onclick=()=>{map.setMapTypeId('roadmap');map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});status('Base Google nascosta. Rimangono catasto e disegni.')};$('onlycat').onclick=()=>{$('cadastre').checked=true;cadOpacity=1;$('opacity').value=100;$('opval').textContent='100%';$('none').click();reloadCad()};
 $('locate').onclick=()=>{if(!navigator.geolocation){status('GPS non disponibile.');return}status('Ricerca GPS…');navigator.geolocation.getCurrentPosition(p=>{const q={lat:p.coords.latitude,lng:p.coords.longitude};map.setCenter(q);map.setZoom(18);if(gpsMarker)gpsMarker.setMap(null);gpsMarker=new google.maps.Marker({position:q,map,title:'Posizione GPS'});$('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(p.coords.accuracy)+' m';status('Mappa centrata sulla posizione GPS.')},e=>status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message)),{enableHighAccuracy:true,timeout:20000})};
