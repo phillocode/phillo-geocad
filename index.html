@@ -1,21 +1,21 @@
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Phillo GeoCAD v11 Proxy Cache</title>
+<title>Phillo GeoCAD v12 True Reprojection</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font:14px system-ui,Arial;background:#101d26;color:#eef7f8}header{height:58px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#142b35;border-bottom:1px solid #31515a}.layout{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 58px)}aside{padding:15px;overflow:auto;border-right:1px solid #34505a}#map{height:100%;min-height:460px}h1{font-size:19px;margin:0}h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9ec8d0;margin:18px 0 9px}.line{display:flex;align-items:center;gap:8px;margin:9px 0}button,input,select{font:inherit}button{background:#244552;color:#fff;border:1px solid #4b7884;padding:9px 10px;border-radius:7px;cursor:pointer}button:hover{background:#32606e}.full{width:100%;margin:4px 0}.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}.active{background:#0c948e!important;border-color:#52e5d3!important}input[type=text]{width:100%;padding:9px;border-radius:6px;border:1px solid #53727b;background:#17333e;color:#fff}.hint{font-size:12px;line-height:1.45;color:#aac3c8}.notice{background:#1b3943;border-left:3px solid #21c1b4;padding:10px;margin:12px 0;font-size:12px;line-height:1.45}.warn{border-left-color:#e6b34a}.status{position:absolute;left:335px;bottom:12px;background:#142b35ed;padding:8px 11px;border-radius:7px;z-index:10;max-width:calc(100% - 355px)}.keybox{background:#193640;padding:10px;border-radius:8px}.diag{font-size:11px;background:#0c1820;padding:9px;border-radius:7px;line-height:1.45;word-break:break-word}.ok{color:#6fe3c8}.bad{color:#ff9e96}@media(max-width:720px){.layout{grid-template-columns:1fr;height:auto}.status{position:fixed;left:8px;right:8px;bottom:8px;max-width:none}#map{height:62vh}aside{border-right:0}}
 </style></head><body>
-<header><h1>◈ Phillo GeoCAD <small>· v11 Proxy Cache</small></h1><small>Google · Catasto · GPS · CAD</small></header>
+<header><h1>◈ Phillo GeoCAD <small>· v12 True Reprojection</small></h1><small>Google · Catasto · GPS · CAD</small></header>
 <div class="layout"><aside>
 <h2>Google Maps Demo Key</h2><div class="keybox"><input id="apikey" type="text" autocomplete="off" placeholder="Incolla qui la Demo Key"><button id="load" class="full">Carica Google Maps</button><div class="hint">La chiave non viene salvata nel file.</div></div>
 <h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
 <h2>Catasto</h2><label class="line"><input id="cadastre" type="checkbox" checked disabled> Catasto Agenzia Entrate</label><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label><button id="onlycat" class="full" disabled>Mostra solo catasto</button><button id="reloadcat" class="full" disabled>Ricarica catasto</button>
-<div class="hint">La v11 carica il catasto tramite il proxy Vercel /api/catasto: retry lato server e cache CDN, senza chiamate WMS dirette dal browser.</div>
+<div class="hint">La v12 invia al proxy le coordinate tile x/y/z: il server riproietta realmente il raster catastale UTM nella griglia Web Mercator di Google, mantenendo retry e cache CDN.</div>
 <div id="diag" class="diag">Diagnostica WMS: non avviata.</div>
 <h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
 <h2>Disegno CAD</h2><div class="tools"><button data-tool="point" disabled>⊕ Punto</button><button data-tool="line" disabled>╱ Linea</button><button data-tool="polygon" disabled>⬡ Poligono</button><button id="clear" disabled>⌫ Cancella tutto</button></div><div id="count" class="hint">0 elementi</div>
 <h2>Esportazione TOKNAV</h2><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
-<div class="notice"><b>Correzione v11.</b> Il browser interroga il proxy Vercel /api/catasto. Il proxy effettua fino a 3 tentativi verso il WMS e mette in cache CDN le immagini riuscite. Restano separati Base e Dettaglio catastale.</div>
-<div class="notice warn"><b>Nota tecnica.</b> Google lavora in Web Mercator e il Catasto in UTM. La v11 usa già un proxy server per stabilità e cache; la reproiezione resta calcolata tile-per-tile nel browser.</div>
+<div class="notice"><b>Correzione v12.</b> True reprojection lato server: ogni pixel della tile Google viene trasformato in UTM, campionato dal WMS catastale e restituito nella posizione Web Mercator corretta. Retry e cache Vercel restano attivi.</div>
+<div class="notice warn"><b>Nota tecnica.</b> La v12 non stira più un rettangolo UTM dentro la tile Google: esegue un ricampionamento raster geometrico sul server, così i bordi delle tile condividono la stessa griglia globale.</div>
 <div class="hint" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)</div></aside><div id="map"></div></div><div id="status" class="status">Incolla la Demo Key e premi “Carica Google Maps”.</div>
 <script src="https://cdn.jsdelivr.net/npm/proj4@2.12.1/dist/proj4.js"></script>
 <script>
@@ -25,7 +25,7 @@ proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
 let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null;
-let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
+let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
   base:['acque','strade'],
@@ -41,19 +41,16 @@ function normX(x,z){const n=2**z;return ((x%n)+n)%n}
 function tileLonLatBounds(coord,z){const n=2**z,x=normX(coord.x,z),y=coord.y;const lon1=x/n*360-180,lon2=(x+1)/n*360-180;const latFromY=v=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*v/n)));const lat1=latFromY(y+1),lat2=latFromY(y);return {west:lon1,south:lat1,east:lon2,north:lat2}}
 function zoneForLon(lon){if(lon<12)return 32;if(lon<18)return 33;return 34}
 function proxyTileUrl(group,coord,z){
-  const b=tileLonLatBounds(coord,z),lon=(b.west+b.east)/2,zone=zoneForLon(lon),crs='EPSG:258'+zone;
-  const corners=[[b.west,b.south],[b.west,b.north],[b.east,b.south],[b.east,b.north]].map(p=>proj4('EPSG:4326',crs,p));
-  const xs=corners.map(p=>p[0]),ys=corners.map(p=>p[1]);
-  const bbox=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
-  const q=new URLSearchParams({group,srs:crs,bbox:bbox.join(','),width:'256',height:'256'});
+  const x=normX(coord.x,z),y=coord.y;
+  const q=new URLSearchParams({group,x:String(x),y:String(y),z:String(z)});
   lastTileUrl='/api/catasto?'+q.toString();
   return lastTileUrl;
 }
 function updateDiag(){
   const cls=tileErrors?'bad':'ok';
   const mode=lastZoom<17?'Catasto non richiesto sotto zoom 17':('Zoom '+lastZoom+' · ultimo gruppo: '+lastGroup);
-  $('diag').innerHTML='Diagnostica WMS v11: <span class="'+cls+'">'+tileLoads+' tile complete · '+tileErrors+' errori finali</span><br>'+
-    'Proxy: '+proxyRequests+' richieste · retry server: '+serverRetries+'<br>'+
+  $('diag').innerHTML='Diagnostica WMS v12: <span class="'+cls+'">'+tileLoads+' tile complete · '+tileErrors+' errori finali</span><br>'+
+    'Proxy: '+proxyRequests+' richieste · retry server: '+serverRetries+' · riproiettate: '+reprojectedResponses+'<br>'+
     'Cache Vercel: HIT '+cacheHits+' · MISS '+cacheMisses+' · ? '+cacheUnknown+'<br>'+
     'Base Acque/Strade: '+groupStats.base.ok+'/'+groupStats.base.err+' · Dettaglio: '+groupStats.detail.ok+'/'+groupStats.detail.err+'<br>'+
     mode+'<br>Ultima richiesta: '+(lastTileUrl||'—');
@@ -101,6 +98,7 @@ function makeCadastreMapType(){
             if(vc==='HIT')cacheHits++;
             else if(vc==='MISS'||vc==='STALE'||vc==='BYPASS')cacheMisses++;
             else cacheUnknown++;
+            if((response.headers.get('x-phillo-reprojected')||'').toLowerCase()==='true')reprojectedResponses++;
             if(!response.ok)throw new Error('Proxy HTTP '+response.status);
             const type=response.headers.get('content-type')||'';
             if(!type.includes('image'))throw new Error('Risposta proxy non immagine');
@@ -129,7 +127,7 @@ function makeCadastreMapType(){
 }
 function installCadastre(){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);updateDiag()}
 function setCad(on){if(!map)return;if(on){if(map.overlayMapTypes.getLength()===0){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay)}}else map.overlayMapTypes.clear()}
-function reloadCad(){tileLoads=0;tileErrors=0;proxyRequests=0;serverRetries=0;cacheHits=0;cacheMisses=0;cacheUnknown=0;lastTileUrl='';lastGroup='—';groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};map.overlayMapTypes.clear();cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);$('cadastre').checked=true;updateDiag();status('Catasto ricaricato tramite proxy Vercel.')}
+function reloadCad(){tileLoads=0;tileErrors=0;proxyRequests=0;serverRetries=0;reprojectedResponses=0;cacheHits=0;cacheMisses=0;cacheUnknown=0;lastTileUrl='';lastGroup='—';groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};map.overlayMapTypes.clear();cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);$('cadastre').checked=true;updateDiag();status('Catasto ricaricato tramite proxy Vercel.')}
 $('cadastre').onchange=e=>setCad(e.target.checked);$('opacity').oninput=e=>{cadOpacity=+e.target.value/100;$('opval').textContent=e.target.value+'%';reloadCad()};$('reloadcat').onclick=reloadCad;
 $('sat').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('satellite')};$('road').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('roadmap')};$('hybrid').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('hybrid')};$('none').onclick=()=>{map.setMapTypeId('roadmap');map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});status('Base Google nascosta. Rimangono catasto e disegni.')};$('onlycat').onclick=()=>{$('cadastre').checked=true;cadOpacity=1;$('opacity').value=100;$('opval').textContent='100%';$('none').click();reloadCad()};
 $('locate').onclick=()=>{if(!navigator.geolocation){status('GPS non disponibile.');return}status('Ricerca GPS…');navigator.geolocation.getCurrentPosition(p=>{const q={lat:p.coords.latitude,lng:p.coords.longitude};map.setCenter(q);map.setZoom(18);if(gpsMarker)gpsMarker.setMap(null);gpsMarker=new google.maps.Marker({position:q,map,title:'Posizione GPS'});$('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(p.coords.accuracy)+' m';status('Mappa centrata sulla posizione GPS.')},e=>status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message)),{enableHighAccuracy:true,timeout:20000})};
