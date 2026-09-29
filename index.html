@@ -8,7 +8,7 @@
 <div class="layout"><aside>
 <h2>Google Maps Demo Key</h2><div class="keybox"><input id="apikey" type="text" autocomplete="off" placeholder="Incolla qui la Demo Key"><button id="load" class="full">Carica Google Maps</button><div class="hint">La chiave non viene salvata nel file.</div></div>
 <h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
-<h2>Catasto</h2><label class="line"><input id="cadastre" type="checkbox" disabled> Catasto Agenzia Entrate</label><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label><button id="onlycat" class="full" disabled>Mostra solo catasto</button><button id="reloadcat" class="full" disabled>Ricarica catasto</button>
+<h2>Catasto</h2><button id="catastoBtn" class="full" disabled>Catasto · OFF</button><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label>
 <div class="hint">La v12 invia al proxy le coordinate tile x/y/z: il server riproietta realmente il raster catastale UTM nella griglia Web Mercator di Google, mantenendo retry e cache CDN.</div>
 <div id="diag" class="diag">Diagnostica WMS: non avviata.</div>
 <h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
@@ -126,10 +126,89 @@ function makeCadastreMapType(){
   };
 }
 function installCadastre(){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);updateDiag()}
-function setCad(on){if(!map)return;if(on){const center=map.getCenter();if(map.overlayMapTypes.getLength()===0){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay)}map.setZoom(17);if(center)map.setCenter(center);status('Catasto attivato: zoom 17 mantenendo il centro della mappa.')}else{map.overlayMapTypes.clear();status('Catasto spento.')}}
-function reloadCad(){tileLoads=0;tileErrors=0;proxyRequests=0;serverRetries=0;reprojectedResponses=0;cacheHits=0;cacheMisses=0;cacheUnknown=0;lastTileUrl='';lastGroup='—';groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};map.overlayMapTypes.clear();cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);$('cadastre').checked=true;updateDiag();status('Catasto ricaricato tramite proxy Vercel.')}
-$('cadastre').onchange=e=>setCad(e.target.checked);$('opacity').oninput=e=>{cadOpacity=+e.target.value/100;$('opval').textContent=e.target.value+'%';reloadCad()};$('reloadcat').onclick=reloadCad;
-$('sat').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('satellite')};$('road').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('roadmap')};$('hybrid').onclick=()=>{map.setOptions({styles:null});map.setMapTypeId('hybrid')};$('none').onclick=()=>{map.setMapTypeId('roadmap');map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});status('Base Google nascosta. Rimangono catasto e disegni.')};$('onlycat').onclick=()=>{$('cadastre').checked=true;cadOpacity=1;$('opacity').value=100;$('opval').textContent='100%';$('none').click();reloadCad()};
+let catastoActive=false,previousBaseType='roadmap',previousStyles=null;
+
+function resetCadStats(){
+  tileLoads=0;tileErrors=0;proxyRequests=0;serverRetries=0;reprojectedResponses=0;
+  cacheHits=0;cacheMisses=0;cacheUnknown=0;lastTileUrl='';lastGroup='—';
+  groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
+}
+
+function setCatastoButtonState(on){
+  catastoActive=on;
+  const b=$('catastoBtn');
+  b.classList.toggle('active',on);
+  b.textContent=on?'Catasto · ATTIVO':'Catasto · OFF';
+}
+
+function activateCatasto(){
+  if(!map)return;
+  const center=map.getCenter();
+  previousBaseType=map.getMapTypeId()||'roadmap';
+  previousStyles=map.get('styles')||null;
+
+  resetCadStats();
+  map.overlayMapTypes.clear();
+  cadOverlay=makeCadastreMapType();
+  map.overlayMapTypes.insertAt(0,cadOverlay);
+
+  map.setMapTypeId('roadmap');
+  map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});
+
+  map.setZoom(17);
+  if(center)map.setCenter(center);
+
+  setCatastoButtonState(true);
+  updateDiag();
+  status('Catasto ATTIVO · zoom 17 · centro mantenuto.');
+}
+
+function deactivateCatasto(){
+  if(!map)return;
+  const center=map.getCenter();
+  map.overlayMapTypes.clear();
+  map.setOptions({styles:previousStyles});
+  map.setMapTypeId(previousBaseType||'roadmap');
+  if(center)map.setCenter(center);
+  setCatastoButtonState(false);
+  updateDiag();
+  status('Catasto spento · base precedente ripristinata.');
+}
+
+function toggleCatasto(){
+  if(catastoActive)deactivateCatasto();
+  else activateCatasto();
+}
+
+$('catastoBtn').onclick=toggleCatasto;
+$('opacity').oninput=e=>{
+  cadOpacity=+e.target.value/100;
+  $('opval').textContent=e.target.value+'%';
+  if(catastoActive)activateCatasto();
+};
+
+$('sat').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setOptions({styles:null});
+  map.setMapTypeId('satellite');
+};
+$('road').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setOptions({styles:null});
+  map.setMapTypeId('roadmap');
+};
+$('hybrid').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setOptions({styles:null});
+  map.setMapTypeId('hybrid');
+};
+$('none').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setMapTypeId('roadmap');
+  map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});
+  status('Base Google nascosta.');
+};
+
 $('locate').onclick=()=>{if(!navigator.geolocation){status('GPS non disponibile.');return}status('Ricerca GPS…');navigator.geolocation.getCurrentPosition(p=>{const q={lat:p.coords.latitude,lng:p.coords.longitude};map.setCenter(q);map.setZoom(18);if(gpsMarker)gpsMarker.setMap(null);gpsMarker=new google.maps.Marker({position:q,map,title:'Posizione GPS'});$('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(p.coords.accuracy)+' m';status('Mappa centrata sulla posizione GPS.')},e=>status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message)),{enableHighAccuracy:true,timeout:20000})};
 function setTool(t){drawingMode=t;tempPath=[];if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));status(t==='point'?'Tocca la mappa per inserire un punto.':'Tocca i vertici; fai doppio clic per terminare.')}
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
