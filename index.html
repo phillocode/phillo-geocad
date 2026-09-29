@@ -212,7 +212,30 @@ $('none').onclick=()=>{
 $('locate').onclick=()=>{if(!navigator.geolocation){status('GPS non disponibile.');return}status('Ricerca GPS…');navigator.geolocation.getCurrentPosition(p=>{const q={lat:p.coords.latitude,lng:p.coords.longitude};map.setCenter(q);map.setZoom(18);if(gpsMarker)gpsMarker.setMap(null);gpsMarker=new google.maps.Marker({position:q,map,title:'Posizione GPS'});$('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(p.coords.accuracy)+' m';status('Mappa centrata sulla posizione GPS.')},e=>status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message)),{enableHighAccuracy:true,timeout:20000})};
 function setTool(t){drawingMode=t;tempPath=[];if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));status(t==='point'?'Tocca la mappa per inserire un punto.':'Tocca i vertici; fai doppio clic per terminare.')}
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
-function cadClick(e){if(!drawingMode)return;const p={lat:e.latLng.lat(),lng:e.latLng.lng()};if(drawingMode==='point'){const obj=new google.maps.Marker({position:p,map,label:String(features.filter(f=>f.type==='point').length+1)});features.push({type:'point',path:[p],obj});updateCount();return}tempPath.push(p);if(tempPolyline)tempPolyline.setMap(null);tempPolyline=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3});}
+function cadClick(e){if(!drawingMode)return;const p={lat:e.latLng.lat(),lng:e.latLng.lng()};if(drawingMode==='point'){
+  const obj=new google.maps.Marker({
+    position:p,
+    map,
+    label:String(features.filter(f=>f.type==='point').length+1),
+    draggable:true,
+    title:'Trascina per correggere la posizione'
+  });
+  const feature={type:'point',path:[p],obj};
+  obj.addListener('dragstart',()=>status('Sposta il punto e rilascialo nella posizione corretta.'));
+  obj.addListener('drag',e=>{
+    const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
+    status('Posizione: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
+  });
+  obj.addListener('dragend',e=>{
+    const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
+    feature.path[0]=q;
+    status('Punto aggiornato: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
+  });
+  features.push(feature);
+  updateCount();
+  status('Punto inserito. Puoi trascinarlo per perfezionare la posizione.');
+  return
+}tempPath.push(p);if(tempPolyline)tempPolyline.setMap(null);tempPolyline=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3});}
 mapDblHandler=()=>finishShape();document.getElementById('map').addEventListener('dblclick',()=>setTimeout(finishShape,0));
 function finishShape(){if(!drawingMode||drawingMode==='point'||tempPath.length<2)return;if(tempPolyline)tempPolyline.setMap(null);let obj;if(drawingMode==='polygon'&&tempPath.length>=3)obj=new google.maps.Polygon({paths:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,fillColor:'#ffcc00',fillOpacity:.16,editable:true});else obj=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,editable:true});features.push({type:drawingMode,path:[...tempPath],obj});tempPath=[];tempPolyline=null;updateCount()}
 function updateCount(){$('count').textContent=features.length+' elementi'}
