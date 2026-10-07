@@ -7,3 +7,9 @@
     "sharp": "0.33.5"
   }
 }
+{
+  "regions": ["fra1"],
+  "functions": {
+    "api/catasto.js": { "maxDuration": 30 }
+  }
+}
