@@ -1,0 +1,6 @@
+{
+  "regions": ["fra1"],
+  "functions": {
+    "api/catasto.js": { "maxDuration": 30 }
+  }
+}
