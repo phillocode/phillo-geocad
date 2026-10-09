@@ -260,8 +260,54 @@ mapDblHandler=()=>finishShape();document.getElementById('map').addEventListener(
 function finishShape(){if(!drawingMode||drawingMode==='point'||tempPath.length<2)return;if(tempPolyline)tempPolyline.setMap(null);let obj;if(drawingMode==='polygon'&&tempPath.length>=3)obj=new google.maps.Polygon({paths:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,fillColor:'#ffcc00',fillOpacity:.16,editable:true});else obj=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,editable:true});features.push({type:drawingMode,path:[...tempPath],obj});tempPath=[];tempPolyline=null;updateCount()}
 function updateCount(){$('count').textContent=features.length+' elementi'}
 $('clear').onclick=()=>{features.forEach(f=>f.obj.setMap(null));features=[];updateCount();status('Disegni cancellati.')};
-function utm(p){return proj4('EPSG:4326','EPSG:32632',[p.lng,p.lat])}function dl(name,text,type='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-$('csv').onclick=()=>{let s='NOME;EST;NORD;QUOTA\n',n=1;features.filter(f=>f.type==='point').forEach(f=>{const q=utm(f.path[0]);s+='P'+n+++';'+q[0].toFixed(3)+';'+q[1].toFixed(3)+';0.000\n'});dl('phillo_punti_toknav.csv',s,'text/csv')};
-$('dxf').onclick=()=>{let d='0\nSECTION\n2\nENTITIES\n';features.forEach(f=>{if(f.type==='point'){const q=utm(f.path[0]);d+='0\nPOINT\n8\nPUNTI\n10\n'+q[0]+'\n20\n'+q[1]+'\n30\n0\n'}else{d+='0\nLWPOLYLINE\n8\nCAD\n90\n'+f.path.length+'\n70\n'+(f.type==='polygon'?1:0)+'\n';f.path.forEach(p=>{const q=utm(p);d+='10\n'+q[0]+'\n20\n'+q[1]+'\n'})}});d+='0\nENDSEC\n0\nEOF\n';dl('phillo_geocad_toknav.dxf',d)};
-$('geojson').onclick=()=>{const gj={type:'FeatureCollection',features:features.map(f=>({type:'Feature',properties:{},geometry:{type:f.type==='point'?'Point':f.type==='line'?'LineString':'Polygon',coordinates:f.type==='point'?[f.path[0].lng,f.path[0].lat]:f.type==='polygon'?[f.path.map(p=>[p.lng,p.lat]).concat([[f.path[0].lng,f.path[0].lat]])]:f.path.map(p=>[p.lng,p.lat])}}))};dl('phillo_geocad.geojson',JSON.stringify(gj,null,2),'application/geo+json')};
+function currentFeaturePath(f){
+  if(f.type==='point')return [f.obj.getPosition().toJSON()];
+  const path=f.obj.getPath();
+  return path.getArray().map(p=>({lat:p.lat(),lng:p.lng()}));
+}
+function utmZone(lon){return Math.max(1,Math.min(60,Math.floor((lon+180)/6)+1))}
+function exportCrs(){
+  const all=features.flatMap(currentFeaturePath);
+  if(!all.length)return 'EPSG:32632';
+  const zones=new Set(all.map(p=>utmZone(p.lng)));
+  if(zones.size!==1){status('Esportazione UTM non possibile: elementi in zone UTM diverse.');return null}
+  return 'EPSG:326'+String([...zones][0]).padStart(2,'0');
+}
+function utm(p,crs){return proj4('EPSG:4326',crs,[p.lng,p.lat])}function dl(name,text,type='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+$('csv').onclick=()=>{
+  const crs=exportCrs();if(!crs)return;
+  let s='NOME;EST;NORD;QUOTA\\n',n=1;
+  features.filter(f=>f.type==='point').forEach(f=>{
+    const q=utm(currentFeaturePath(f)[0],crs);
+    s+='P'+n+++';'+q[0].toFixed(3)+';'+q[1].toFixed(3)+';0.000\\n';
+  });
+  dl('phillo_punti_toknav.csv',s,'text/csv');
+};
+$('dxf').onclick=()=>{
+  const crs=exportCrs();if(!crs)return;
+  let d='0\\nSECTION\\n2\\nENTITIES\\n';
+  features.forEach(f=>{
+    const path=currentFeaturePath(f);
+    if(f.type==='point'){
+      const q=utm(path[0],crs);
+      d+='0\\nPOINT\\n8\\nPUNTI\\n10\\n'+q[0]+'\\n20\\n'+q[1]+'\\n30\\n0\\n';
+    }else{
+      d+='0\\nLWPOLYLINE\\n8\\nCAD\\n90\\n'+path.length+'\\n70\\n'+(f.type==='polygon'?1:0)+'\\n';
+      path.forEach(p=>{const q=utm(p,crs);d+='10\\n'+q[0]+'\\n20\\n'+q[1]+'\\n'});
+    }
+  });
+  d+='0\\nENDSEC\\n0\\nEOF\\n';
+  dl('phillo_geocad_toknav.dxf',d);
+};
+$('geojson').onclick=()=>{
+  const gj={type:'FeatureCollection',features:features.map(f=>{
+    const path=currentFeaturePath(f);
+    const coords=path.map(p=>[p.lng,p.lat]);
+    return {type:'Feature',properties:{},geometry:{
+      type:f.type==='point'?'Point':f.type==='line'?'LineString':'Polygon',
+      coordinates:f.type==='point'?coords[0]:f.type==='polygon'?[coords.concat([coords[0]])]:coords
+    }};
+  })};
+  dl('phillo_geocad.geojson',JSON.stringify(gj,null,2),'application/geo+json');
+};
 </script></body></html>
