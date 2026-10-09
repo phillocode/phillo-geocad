@@ -6,7 +6,7 @@
 </style></head><body>
 <header><h1>◈ Phillo GeoCAD <small>· v12 True Reprojection</small></h1><small>Google · Catasto · GPS · CAD</small></header>
 <div class="layout"><aside>
-<h2>Google Maps Demo Key</h2><div class="keybox"><input id="apikey" type="text" autocomplete="off" placeholder="Incolla qui la Demo Key"><button id="load" class="full">Carica Google Maps</button><div class="hint">La chiave non viene salvata nel file.</div></div>
+<h2>Google Maps</h2><div class="keybox"><div id="mapskeyinfo" class="hint">Chiave caricata automaticamente in modo protetto dal server.</div></div>
 <h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
 <h2>Catasto</h2><button id="catastoBtn" class="full" disabled>Catasto · OFF</button><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label>
 <div class="hint">La v12 invia al proxy le coordinate tile x/y/z: il server riproietta realmente il raster catastale UTM nella griglia Web Mercator di Google, mantenendo retry e cache CDN.</div>
@@ -16,7 +16,7 @@
 <h2>Esportazione TOKNAV</h2><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
 <div class="notice"><b>Correzione v12.</b> True reprojection lato server: ogni pixel della tile Google viene trasformato in UTM, campionato dal WMS catastale e restituito nella posizione Web Mercator corretta. Retry e cache Vercel restano attivi.</div>
 <div class="notice warn"><b>Nota tecnica.</b> La v12 non stira più un rettangolo UTM dentro la tile Google: esegue un ricampionamento raster geometrico sul server, così i bordi delle tile condividono la stessa griglia globale.</div>
-<div class="hint" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)</div></aside><div id="map"></div></div><div id="status" class="status">Incolla la Demo Key e premi “Carica Google Maps”.</div>
+<div class="hint" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)</div></aside><div id="map"></div></div><div id="status" class="status">Caricamento Google Maps…</div>
 <script src="https://cdn.jsdelivr.net/npm/proj4@2.12.1/dist/proj4.js"></script>
 <script>
 proj4.defs('EPSG:3857','+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs');
@@ -34,8 +34,28 @@ const WMS_GROUPS={
 };
 const $=id=>document.getElementById(id),status=t=>$('status').textContent=t;
 function enableUI(){document.querySelectorAll('button[disabled],input[disabled]').forEach(x=>x.disabled=false)}
-function loadGoogle(){const key=$('apikey').value.trim();if(!key){status('Inserisci prima la Demo Key.');return}if(window.google?.maps){initMap();return}window.__philloInit=initMap;const s=document.createElement('script');s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(key)+'&callback=__philloInit&loading=async';s.async=true;s.onerror=()=>status('Google Maps non è stato caricato. Controlla la Demo Key e la connessione.');document.head.appendChild(s);status('Caricamento Google Maps…')}
-$('load').onclick=loadGoogle;
+async function loadGoogle(){
+  if(window.google?.maps){initMap();return}
+  status('Caricamento configurazione Google Maps…');
+  try{
+    const r=await fetch('/api/maps-config',{cache:'no-store'});
+    if(!r.ok)throw new Error('Configurazione non disponibile');
+    const cfg=await r.json();
+    if(!cfg.key)throw new Error('Chiave Google Maps non configurata');
+    window.__philloInit=initMap;
+    const s=document.createElement('script');
+    s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(cfg.key)+'&callback=__philloInit&loading=async&auth_referrer_policy=origin';
+    s.async=true;
+    s.onerror=()=>status('Google Maps non è stato caricato. Controlla la configurazione della chiave.');
+    document.head.appendChild(s);
+    $('mapskeyinfo').textContent='Configurazione Google Maps caricata automaticamente.';
+    status('Caricamento Google Maps…');
+  }catch(e){
+    $('mapskeyinfo').textContent='Chiave Google Maps non configurata su Vercel.';
+    status('Google Maps: configurazione della chiave mancante.');
+  }
+}
+window.addEventListener('DOMContentLoaded',loadGoogle);
 function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:true,disableDoubleClickZoom:true});enableUI();updateDiag();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(map.getZoom()<17)status('Per vedere bene particelle e fabbricati catastali aumenta lo zoom almeno a 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
 function normX(x,z){const n=2**z;return ((x%n)+n)%n}
 function tileLonLatBounds(coord,z){const n=2**z,x=normX(coord.x,z),y=coord.y;const lon1=x/n*360-180,lon2=(x+1)/n*360-180;const latFromY=v=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*v/n)));const lat1=latFromY(y+1),lat2=latFromY(y);return {west:lon1,south:lat1,east:lon2,north:lat2}}
