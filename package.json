@@ -5,5 +5,8 @@
   "dependencies": {
     "proj4": "2.12.1",
     "sharp": "0.33.5"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }
