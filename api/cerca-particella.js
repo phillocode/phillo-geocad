@@ -2,32 +2,14 @@ import { asyncBufferFromUrl, parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 
 const WFS = 'https://wfs.cartografia.agenziaentrate.gov.it/inspire/wfs/owfs01.php';
-const COMUNI_URL = 'https://www1.agenziaentrate.gov.it/servizi/codici/ricerca/VisualizzaTabella.php?ArcName=00T4';
 const PARQUET_BASE = 'https://raw.githubusercontent.com/ondata/dati_catastali/main/S_0000_ITALIA/anagrafica/';
 const PARQUET_INDEX = PARQUET_BASE + 'index.parquet';
 
-let comuniCache = null;
-let comuniCacheAt = 0;
+let municipalityIndexCache = null;
 let regionByComuneCache = new Map();
-const COMUNI_CACHE_MS = 24 * 60 * 60 * 1000;
 
 function bad(res, status, message, extra = {}) {
   return res.status(status).json({ error: message, ...extra });
-}
-
-function decodeHtml(s) {
-  const named = {
-    amp: '&', quot: '"', apos: "'", nbsp: ' ',
-    agrave: 'à', egrave: 'è', eacute: 'é', igrave: 'ì',
-    ograve: 'ò', ugrave: 'ù', aacute: 'á', iacute: 'í',
-    oacute: 'ó', uacute: 'ú'
-  };
-  return String(s || '')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&([a-z]+);/gi, (m, n) => named[n.toLowerCase()] ?? m)
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function normalizeName(s) {
@@ -40,66 +22,50 @@ function normalizeName(s) {
     .trim();
 }
 
-async function fetchText(url, timeout = 12000) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), timeout);
-  try {
-    const r = await fetch(url, {
-      signal: ctl.signal,
-      headers: {
-        'User-Agent': 'Phillo-GeoCAD/13',
-        'Accept': 'text/html,application/xml,text/xml,*/*;q=0.8'
-      }
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return await r.text();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function getComuni() {
-  if (comuniCache && Date.now() - comuniCacheAt < COMUNI_CACHE_MS) return comuniCache;
-  const html = await fetchText(COMUNI_URL);
-  const rows = [];
-  const re = /<td[^>]*>\s*([A-Z]\d{3})\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/gi;
-  let m;
-  while ((m = re.exec(html))) {
-    const name = decodeHtml(m[2]);
-    rows.push({ code: m[1].toUpperCase(), name, norm: normalizeName(name) });
-  }
-  if (!rows.length) throw new Error('Tabella comuni non leggibile');
-  comuniCache = rows;
-  comuniCacheAt = Date.now();
-  return rows;
+async function getMunicipalityIndex() {
+  if (municipalityIndexCache) return municipalityIndexCache;
+  const rows = await parquetQuery(
+    PARQUET_INDEX,
+    ['comune', 'file', 'CODISTAT', 'DENOMINAZIONE_IT'],
+    undefined,
+    20000
+  );
+  municipalityIndexCache = rows
+    .filter(r => r?.comune && r?.file)
+    .map(r => ({
+      code: String(r.comune),
+      file: String(r.file),
+      codistat: r.CODISTAT == null ? null : String(r.CODISTAT),
+      name: r.DENOMINAZIONE_IT == null ? String(r.comune) : String(r.DENOMINAZIONE_IT),
+      norm: normalizeName(r.DENOMINAZIONE_IT == null ? r.comune : r.DENOMINAZIONE_IT)
+    }));
+  return municipalityIndexCache;
 }
 
 async function resolveComune(value) {
   const raw = String(value || '').trim();
+  const index = await getMunicipalityIndex();
+
   if (/^[A-Za-z]\d{3}$/.test(raw)) {
     const code = raw.toUpperCase();
-    try {
-      const comuni = await getComuni();
-      const found = comuni.find(x => x.code === code);
-      return found || { code, name: code, norm: code };
-    } catch {
-      return { code, name: code, norm: code };
-    }
+    const found = index.find(x => x.code === code);
+    if (found) return found;
+    throw Object.assign(new Error('Codice catastale del Comune non trovato'), { status: 404 });
   }
 
   const norm = normalizeName(raw);
   if (!norm) throw Object.assign(new Error('Comune mancante'), { status: 400 });
-  const comuni = await getComuni();
-  const exact = comuni.filter(x => x.norm === norm);
+
+  const exact = index.filter(x => x.norm === norm);
   if (exact.length === 1) return exact[0];
 
-  const starts = comuni.filter(x => x.norm.startsWith(norm));
+  const starts = index.filter(x => x.norm.startsWith(norm));
   const candidates = exact.length ? exact : starts;
   if (candidates.length === 1) return candidates[0];
 
   const err = new Error(candidates.length ? 'Comune ambiguo' : 'Comune non trovato');
   err.status = candidates.length ? 409 : 404;
-  err.options = candidates.slice(0, 12);
+  err.options = candidates.slice(0, 12).map(x => ({ code: x.code, name: x.name }));
   throw err;
 }
 
@@ -142,18 +108,13 @@ async function parquetQuery(url, columns, filter, timeout = 15000) {
 
 async function findRegionFile(comuneCode) {
   if (regionByComuneCache.has(comuneCode)) return regionByComuneCache.get(comuneCode);
-
-  const rows = await parquetQuery(
-    PARQUET_INDEX,
-    ['comune', 'file', 'CODISTAT', 'DENOMINAZIONE_IT'],
-    { comune: { $eq: comuneCode } }
-  );
-  const row = rows[0];
-  if (!row?.file) return null;
+  const index = await getMunicipalityIndex();
+  const row = index.find(x => x.code === comuneCode);
+  if (!row) return null;
   const result = {
-    file: String(row.file),
-    denomination: row.DENOMINAZIONE_IT ? String(row.DENOMINAZIONE_IT) : null,
-    codistat: row.CODISTAT ? String(row.CODISTAT) : null
+    file: row.file,
+    denomination: row.name,
+    codistat: row.codistat
   };
   regionByComuneCache.set(comuneCode, result);
   return result;
