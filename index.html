@@ -298,32 +298,216 @@ $('searchParcel').onclick=searchCadastralParcel;
 });
 
 $('locate').onclick=()=>{if(!navigator.geolocation){status('GPS non disponibile.');return}status('Ricerca GPS…');navigator.geolocation.getCurrentPosition(p=>{const q={lat:p.coords.latitude,lng:p.coords.longitude};map.setCenter(q);map.setZoom(18);if(gpsMarker)gpsMarker.setMap(null);gpsMarker=new google.maps.Marker({position:q,map,title:'Posizione GPS'});$('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(p.coords.accuracy)+' m';status('Mappa centrata sulla posizione GPS.')},e=>status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message)),{enableHighAccuracy:true,timeout:20000})};
-function setTool(t){drawingMode=t;tempPath=[];if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));status(t==='point'?'Tocca la mappa per inserire un punto.':'Tocca i vertici; fai doppio clic per terminare.')}
+let pointSnapBusy=false;
+
+function metersPerPixelAt(lat){
+  const z=map?.getZoom?.()||18;
+  return 156543.03392*Math.cos(lat*Math.PI/180)/Math.pow(2,z);
+}
+
+function snapToleranceMeters(p){
+  return Math.max(0.4,Math.min(8,metersPerPixelAt(p.lat)*10));
+}
+
+function localXY(p,ref){
+  const kx=111320*Math.cos(ref.lat*Math.PI/180),ky=110540;
+  return {x:(p.lng-ref.lng)*kx,y:(p.lat-ref.lat)*ky};
+}
+
+function fromLocalXY(v,ref){
+  const kx=111320*Math.cos(ref.lat*Math.PI/180),ky=110540;
+  return {lat:ref.lat+v.y/ky,lng:ref.lng+v.x/kx};
+}
+
+function cadSnapPaths(){
+  const out=[];
+  features.filter(f=>f.type==='line'||f.type==='polygon').forEach(f=>{
+    let path=[];
+    if(f.obj?.getPath){
+      f.obj.getPath().forEach(ll=>path.push({lat:ll.lat(),lng:ll.lng()}));
+    }else{
+      path=(f.path||[]).map(p=>({lat:p.lat,lng:p.lng}));
+    }
+    if(f.type==='polygon'&&path.length>2){
+      const a=path[0],b=path[path.length-1];
+      if(a.lat!==b.lat||a.lng!==b.lng)path.push({...a});
+    }
+    if(path.length>1)out.push(path);
+  });
+  return out;
+}
+
+async function cadastralSnapPaths(p,radius){
+  if(!catastoActive)return [];
+  try{
+    const q=new URLSearchParams({
+      lat:p.lat.toFixed(8),
+      lng:p.lng.toFixed(8),
+      radius:radius.toFixed(2)
+    });
+    const r=await fetch('/api/snap-catasto?'+q.toString(),{cache:'no-store'});
+    if(!r.ok)return [];
+    const data=await r.json();
+    return Array.isArray(data.paths)?data.paths:[];
+  }catch{
+    return [];
+  }
+}
+
+function nearestSnapCandidate(p,paths,tolerance){
+  const ref=p;
+  const vertices=[];
+  const segments=[];
+
+  paths.forEach((path,pathIndex)=>{
+    const clean=(path||[]).filter(q=>Number.isFinite(Number(q.lat))&&Number.isFinite(Number(q.lng)))
+      .map(q=>({lat:Number(q.lat),lng:Number(q.lng)}));
+    clean.forEach((q,i)=>{
+      const v=localXY(q,ref);
+      vertices.push({q,v,pathIndex,index:i});
+    });
+    for(let i=0;i+1<clean.length;i++){
+      const a=localXY(clean[i],ref),b=localXY(clean[i+1],ref);
+      segments.push({a,b,qa:clean[i],qb:clean[i+1],pathIndex,index:i,count:clean.length-1});
+    }
+  });
+
+  const d2=v=>v.x*v.x+v.y*v.y;
+  const tol2=tolerance*tolerance;
+  let bestIntersection=null,bestIntersectionD2=Infinity;
+
+  const cross=(a,b)=>a.x*b.y-a.y*b.x;
+  for(let i=0;i<segments.length;i++){
+    const s1=segments[i];
+    for(let j=i+1;j<segments.length;j++){
+      const s2=segments[j];
+      if(s1.pathIndex===s2.pathIndex){
+        const adjacent=Math.abs(s1.index-s2.index)<=1||
+          (s1.index===0&&s2.index===s1.count-1)||
+          (s2.index===0&&s1.index===s2.count-1);
+        if(adjacent)continue;
+      }
+      const r={x:s1.b.x-s1.a.x,y:s1.b.y-s1.a.y};
+      const s={x:s2.b.x-s2.a.x,y:s2.b.y-s2.a.y};
+      const den=cross(r,s);
+      if(Math.abs(den)<1e-9)continue;
+      const qp={x:s2.a.x-s1.a.x,y:s2.a.y-s1.a.y};
+      const t=cross(qp,s)/den,u=cross(qp,r)/den;
+      if(t<-1e-8||t>1+1e-8||u<-1e-8||u>1+1e-8)continue;
+      const v={x:s1.a.x+t*r.x,y:s1.a.y+t*r.y};
+      const dd=d2(v);
+      if(dd<=tol2&&dd<bestIntersectionD2){
+        bestIntersectionD2=dd;
+        bestIntersection=v;
+      }
+    }
+  }
+  if(bestIntersection){
+    return {position:fromLocalXY(bestIntersection,ref),type:'incrocio',distance:Math.sqrt(bestIntersectionD2)};
+  }
+
+  let bestVertex=null,bestVertexD2=Infinity;
+  vertices.forEach(v=>{
+    const dd=d2(v.v);
+    if(dd<=tol2&&dd<bestVertexD2){bestVertexD2=dd;bestVertex=v.v}
+  });
+  if(bestVertex){
+    return {position:fromLocalXY(bestVertex,ref),type:'vertice',distance:Math.sqrt(bestVertexD2)};
+  }
+
+  let bestLine=null,bestLineD2=Infinity;
+  segments.forEach(seg=>{
+    const vx=seg.b.x-seg.a.x,vy=seg.b.y-seg.a.y;
+    const len2=vx*vx+vy*vy;
+    if(len2<1e-12)return;
+    let t=-(seg.a.x*vx+seg.a.y*vy)/len2;
+    t=Math.max(0,Math.min(1,t));
+    const v={x:seg.a.x+t*vx,y:seg.a.y+t*vy};
+    const dd=d2(v);
+    if(dd<=tol2&&dd<bestLineD2){bestLineD2=dd;bestLine=v}
+  });
+  if(bestLine){
+    return {position:fromLocalXY(bestLine,ref),type:'linea',distance:Math.sqrt(bestLineD2)};
+  }
+
+  return {position:p,type:null,distance:null};
+}
+
+async function snapPosition(p){
+  const tolerance=snapToleranceMeters(p);
+  const paths=cadSnapPaths();
+  const catPaths=await cadastralSnapPaths(p,tolerance*1.35);
+  paths.push(...catPaths);
+  const result=nearestSnapCandidate(p,paths,tolerance);
+  result.tolerance=tolerance;
+  return result;
+}
+
+function snapStatus(prefix,snap){
+  if(!snap.type)return prefix+' senza aggancio.';
+  return prefix+' agganciato a '+snap.type+' · scarto '+snap.distance.toFixed(2)+' m.';
+}
+
+async function insertPoint(raw){
+  if(pointSnapBusy)return;
+  pointSnapBusy=true;
+  status(catastoActive?'Ricerca aggancio su linee catastali/CAD…':'Ricerca aggancio sulle linee CAD…');
+  try{
+    const snap=await snapPosition(raw);
+    const p=snap.position;
+    const obj=new google.maps.Marker({
+      position:p,
+      map,
+      label:String(features.filter(f=>f.type==='point').length+1),
+      draggable:true,
+      title:'Trascina per correggere la posizione; al rilascio viene applicato di nuovo lo snap'
+    });
+    const feature={type:'point',path:[p],obj};
+
+    obj.addListener('dragstart',()=>status('Sposta il punto e rilascialo: verrà cercato nuovamente lo snap.'));
+    obj.addListener('drag',e=>{
+      const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
+      status('Posizione provvisoria: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
+    });
+    obj.addListener('dragend',async e=>{
+      const rawDrop={lat:e.latLng.lat(),lng:e.latLng.lng()};
+      status('Ricerca aggancio nella nuova posizione…');
+      const moved=await snapPosition(rawDrop);
+      obj.setPosition(moved.position);
+      feature.path[0]=moved.position;
+      status(snapStatus('Punto aggiornato',moved));
+    });
+
+    features.push(feature);
+    updateCount();
+    status(snapStatus('Punto inserito',snap));
+  }finally{
+    pointSnapBusy=false;
+  }
+}
+
+function setTool(t){
+  drawingMode=t;
+  tempPath=[];
+  if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}
+  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  status(t==='point'
+    ?'Tocca la mappa: snap automatico a incrocio/vertice o linea vicina.'
+    :'Tocca i vertici; fai doppio clic per terminare.');
+}
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
-function cadClick(e){if(!drawingMode)return;const p={lat:e.latLng.lat(),lng:e.latLng.lng()};if(drawingMode==='point'){
-  const obj=new google.maps.Marker({
-    position:p,
-    map,
-    label:String(features.filter(f=>f.type==='point').length+1),
-    draggable:true,
-    title:'Trascina per correggere la posizione'
-  });
-  const feature={type:'point',path:[p],obj};
-  obj.addListener('dragstart',()=>status('Sposta il punto e rilascialo nella posizione corretta.'));
-  obj.addListener('drag',e=>{
-    const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
-    status('Posizione: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
-  });
-  obj.addListener('dragend',e=>{
-    const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
-    feature.path[0]=q;
-    status('Punto aggiornato: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
-  });
-  features.push(feature);
-  updateCount();
-  status('Punto inserito. Puoi trascinarlo per perfezionare la posizione.');
-  return
-}tempPath.push(p);if(tempPolyline)tempPolyline.setMap(null);tempPolyline=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3});}
+
+function cadClick(e){
+  if(!drawingMode)return;
+  const p={lat:e.latLng.lat(),lng:e.latLng.lng()};
+  if(drawingMode==='point'){
+    insertPoint(p);
+    return;
+  }
+  tempPath.push(p);
+  if(tempPolyline)tempPolyline.setMap(null);
+  tempPolyline=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3});
+}
 mapDblHandler=()=>finishShape();document.getElementById('map').addEventListener('dblclick',()=>setTimeout(finishShape,0));
 function finishShape(){if(!drawingMode||drawingMode==='point'||tempPath.length<2)return;if(tempPolyline)tempPolyline.setMap(null);let obj;if(drawingMode==='polygon'&&tempPath.length>=3)obj=new google.maps.Polygon({paths:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,fillColor:'#ffcc00',fillOpacity:.16,editable:true});else obj=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,editable:true});features.push({type:drawingMode,path:[...tempPath],obj});tempPath=[];tempPolyline=null;updateCount()}
 function updateCount(){$('count').textContent=features.length+' elementi'}
