@@ -8,17 +8,25 @@
 <div class="layout"><aside>
 <h2>Google Maps</h2><div class="keybox"><div id="mapskeyinfo" class="hint">Chiave caricata automaticamente dal server; protezione tramite restrizioni dominio/API.</div></div>
 <h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
-<h2>Catasto</h2><button id="catastoBtn" class="full" disabled>Catasto · OFF</button><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label>
-<div class="keybox" style="margin-top:10px">
-  <div class="hint" style="margin-bottom:7px"><b>Ricerca catastale</b></div>
-  <input id="searchComune" type="text" placeholder="Comune (es. Busto Arsizio o B300)" disabled>
-  <div class="tools" style="margin-top:7px">
-    <input id="searchFoglio" type="text" inputmode="numeric" placeholder="Foglio" disabled>
-    <input id="searchParticella" type="text" placeholder="Particella" disabled>
+<h2>Ricerca</h2>
+<div class="keybox">
+  <div id="searchModeLabel" class="hint" style="margin-bottom:7px"><b>Ricerca Google</b></div>
+  <div id="googleSearchBox">
+    <input id="googleQuery" type="text" placeholder="Indirizzo o località" disabled>
+    <button id="searchGoogle" class="full" disabled>Cerca su Google</button>
+    <div id="googleSearchInfo" class="hint">Cerca un indirizzo o una località sulla base Google.</div>
   </div>
-  <button id="searchParcel" class="full" disabled>Cerca e centra</button>
-  <div id="searchInfo" class="hint">Inserisci Comune, Foglio e Particella.</div>
+  <div id="catastoSearchBox" style="display:none">
+    <input id="searchComune" type="text" placeholder="Comune (es. Busto Arsizio o B300)" disabled>
+    <div class="tools" style="margin-top:7px">
+      <input id="searchFoglio" type="text" inputmode="numeric" placeholder="Foglio" disabled>
+      <input id="searchParticella" type="text" placeholder="Particella" disabled>
+    </div>
+    <button id="searchParcel" class="full" disabled>Cerca e centra</button>
+    <div id="searchInfo" class="hint">Inserisci Comune, Foglio e Particella.</div>
+  </div>
 </div>
+<h2>Catasto</h2><button id="catastoBtn" class="full" disabled>Catasto · OFF</button><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label>
 <div class="hint">La v12 invia al proxy le coordinate tile x/y/z: il server riproietta realmente il raster catastale UTM nella griglia Web Mercator di Google, mantenendo retry e cache CDN.</div>
 <div id="diag" class="diag">Diagnostica WMS: non avviata.</div>
 <h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
@@ -34,7 +42,7 @@ proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null,searchHighlights=[];
+let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null,searchHighlights=[];
 let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
@@ -66,7 +74,7 @@ async function loadGoogle(){
   }
 }
 window.addEventListener('DOMContentLoaded',loadGoogle);
-function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:true,disableDoubleClickZoom:true});enableUI();updateDiag();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(map.getZoom()<17)status('Per vedere bene particelle e fabbricati catastali aumenta lo zoom almeno a 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
+function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:true,disableDoubleClickZoom:true});geocoder=new google.maps.Geocoder();enableUI();updateSearchMode();updateDiag();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(catastoActive&&map.getZoom()<17)status('Con Catasto attivo lo zoom minimo è 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
 function normX(x,z){const n=2**z;return ((x%n)+n)%n}
 function tileLonLatBounds(coord,z){const n=2**z,x=normX(coord.x,z),y=coord.y;const lon1=x/n*360-180,lon2=(x+1)/n*360-180;const latFromY=v=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*v/n)));const lat1=latFromY(y+1),lat2=latFromY(y);return {west:lon1,south:lat1,east:lon2,north:lat2}}
 function zoneForLon(lon){if(lon<12)return 32;if(lon<18)return 33;return 34}
@@ -164,11 +172,22 @@ function resetCadStats(){
   groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 }
 
+function updateSearchMode(){
+  const googleBox=$('googleSearchBox');
+  const catastoBox=$('catastoSearchBox');
+  const label=$('searchModeLabel');
+  if(!googleBox||!catastoBox||!label)return;
+  googleBox.style.display=catastoActive?'none':'block';
+  catastoBox.style.display=catastoActive?'block':'none';
+  label.innerHTML=catastoActive?'<b>Ricerca catastale</b>':'<b>Ricerca Google</b>';
+}
+
 function setCatastoButtonState(on){
   catastoActive=on;
   const b=$('catastoBtn');
   b.classList.toggle('active',on);
   b.textContent=on?'Catasto · ATTIVO':'Catasto · OFF';
+  updateSearchMode();
 }
 
 function activateCatasto(){
@@ -248,6 +267,54 @@ $('none').onclick=()=>{
   map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});
   status('Base Google nascosta.');
 };
+
+async function searchGoogleMap(){
+  const query=$('googleQuery').value.trim();
+  if(!query){
+    $('googleSearchInfo').textContent='Inserisci un indirizzo o una località.';
+    status('Ricerca Google: testo mancante.');
+    return;
+  }
+  if(!geocoder){
+    status('Ricerca Google non disponibile.');
+    return;
+  }
+
+  const btn=$('searchGoogle');
+  btn.disabled=true;
+  btn.textContent='Ricerca…';
+  $('googleSearchInfo').textContent='Ricerca su Google in corso…';
+  clearParcelHighlight();
+
+  try{
+    const results=await new Promise((resolve,reject)=>{
+      geocoder.geocode({address:query},(res,st)=>{
+        if(st==='OK'&&res?.length)resolve(res);
+        else reject(new Error(st==='ZERO_RESULTS'?'Nessun risultato trovato.':'Ricerca Google non disponibile: '+st));
+      });
+    });
+
+    const result=results[0];
+    const loc=result.geometry.location;
+    if(result.geometry.viewport){
+      map.fitBounds(result.geometry.viewport);
+    }else{
+      map.setCenter(loc);
+      map.setZoom(18);
+    }
+    $('googleSearchInfo').textContent=result.formatted_address||query;
+    status('Mappa centrata sul risultato Google: '+(result.formatted_address||query));
+  }catch(e){
+    $('googleSearchInfo').textContent=e.message;
+    status('Ricerca Google: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Cerca su Google';
+  }
+}
+
+$('searchGoogle').onclick=searchGoogleMap;
+$('googleQuery').addEventListener('keydown',e=>{if(e.key==='Enter')searchGoogleMap()});
 
 function clearParcelHighlight(){
   searchHighlights.forEach(x=>x.setMap(null));
