@@ -2,9 +2,9 @@
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Phillo GeoCAD v12 True Reprojection</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font:14px system-ui,Arial;background:#101d26;color:#eef7f8}header{height:58px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#142b35;border-bottom:1px solid #31515a}.layout{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 58px)}aside{padding:15px;overflow:auto;border-right:1px solid #34505a}#map{height:100%;min-height:460px}h1{font-size:19px;margin:0}h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9ec8d0;margin:18px 0 9px}.line{display:flex;align-items:center;gap:8px;margin:9px 0}button,input,select{font:inherit}button{background:#244552;color:#fff;border:1px solid #4b7884;padding:9px 10px;border-radius:7px;cursor:pointer}button:hover{background:#32606e}.full{width:100%;margin:4px 0}.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}.active{background:#0c948e!important;border-color:#52e5d3!important}input[type=text]{width:100%;padding:9px;border-radius:6px;border:1px solid #53727b;background:#17333e;color:#fff}.hint{font-size:12px;line-height:1.45;color:#aac3c8}.notice{background:#1b3943;border-left:3px solid #21c1b4;padding:10px;margin:12px 0;font-size:12px;line-height:1.45}.warn{border-left-color:#e6b34a}.status{position:absolute;left:335px;bottom:12px;background:#142b35ed;padding:8px 11px;border-radius:7px;z-index:10;max-width:calc(100% - 355px)}.keybox{background:#193640;padding:10px;border-radius:8px}.diag{font-size:11px;background:#0c1820;padding:9px;border-radius:7px;line-height:1.45;word-break:break-word}.ok{color:#6fe3c8}.bad{color:#ff9e96}@media(max-width:720px){.layout{grid-template-columns:1fr;height:auto}.status{position:fixed;left:8px;right:8px;bottom:8px;max-width:none}#map{height:62vh}aside{border-right:0}}
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,Arial;background:#101d26;color:#eef7f8}header{height:58px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#142b35;border-bottom:1px solid #31515a}.layout{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 58px)}aside{padding:15px;overflow:auto;border-right:1px solid #34505a}#map{height:100%;min-height:460px;position:relative}h1{font-size:19px;margin:0}h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9ec8d0;margin:18px 0 9px}.line{display:flex;align-items:center;gap:8px;margin:9px 0}button,input,select{font:inherit}button{background:#244552;color:#fff;border:1px solid #4b7884;padding:9px 10px;border-radius:7px;cursor:pointer}button:hover{background:#32606e}.full{width:100%;margin:4px 0}.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}.active{background:#0c948e!important;border-color:#52e5d3!important}input[type=text]{width:100%;padding:9px;border-radius:6px;border:1px solid #53727b;background:#17333e;color:#fff}.hint{font-size:12px;line-height:1.45;color:#aac3c8}.notice{background:#1b3943;border-left:3px solid #21c1b4;padding:10px;margin:12px 0;font-size:12px;line-height:1.45}.warn{border-left-color:#e6b34a}.status{position:absolute;left:335px;bottom:12px;background:#142b35ed;padding:8px 11px;border-radius:7px;z-index:10;max-width:calc(100% - 355px)}.keybox{background:#193640;padding:10px;border-radius:8px}.diag{font-size:11px;background:#0c1820;padding:9px;border-radius:7px;line-height:1.45;word-break:break-word}.ok{color:#6fe3c8}.bad{color:#ff9e96}@media(max-width:720px){.layout{grid-template-columns:1fr;height:auto}.status{position:fixed;left:8px;right:8px;bottom:8px;max-width:none}#map{height:62vh}aside{border-right:0}}
 
-.map-command-control{margin:10px 0 0 10px;font:13px system-ui,Arial;user-select:none}.map-command-toggle{background:#142b35f2!important;border:1px solid #4b7884!important;color:#fff!important;border-radius:8px!important;padding:9px 12px!important;min-height:40px!important;box-shadow:0 2px 8px #0008}.map-command-panel{display:none;margin-top:6px;padding:7px;background:#142b35f2;border:1px solid #31515a;border-radius:10px;box-shadow:0 4px 18px #0009;grid-template-columns:repeat(2,minmax(92px,1fr));gap:6px;max-width:230px}.map-command-panel.open{display:grid}.map-command-panel button{min-height:40px;padding:8px 7px;font-size:12px;white-space:nowrap}.map-command-panel button.active{background:#0c948e!important;border-color:#52e5d3!important}
+.map-command-control{margin:10px 0 0 10px;font:13px system-ui,Arial;user-select:none}.map-command-toggle{background:#142b35f2!important;border:1px solid #4b7884!important;color:#fff!important;border-radius:8px!important;padding:9px 12px!important;min-height:40px!important;box-shadow:0 2px 8px #0008}.map-command-panel{display:none;margin-top:6px;padding:7px;background:#142b35f2;border:1px solid #31515a;border-radius:10px;box-shadow:0 4px 18px #0009;grid-template-columns:repeat(2,minmax(92px,1fr));gap:6px;max-width:230px}.map-command-panel.open{display:grid}.map-command-panel button{min-height:40px;padding:8px 7px;font-size:12px;white-space:nowrap}.map-command-panel button.active{background:#0c948e!important;border-color:#52e5d3!important}.precision-target{display:none;position:absolute;left:50%;top:50%;width:54px;height:54px;transform:translate(-50%,-50%);z-index:8;pointer-events:none}.precision-target.show{display:block}.precision-target:before,.precision-target:after{content:'';position:absolute;background:#ffea00;box-shadow:0 0 2px #000}.precision-target:before{left:26px;top:0;width:2px;height:54px}.precision-target:after{left:0;top:26px;width:54px;height:2px}.precision-target span{position:absolute;left:20px;top:20px;width:14px;height:14px;border:2px solid #ffea00;border-radius:50%;background:#101d2666;box-shadow:0 0 3px #000}.precision-panel{display:none;margin-bottom:84px;background:#142b35f2;border:1px solid #4b7884;border-radius:11px;padding:6px;gap:6px;box-shadow:0 4px 18px #0009}.precision-panel.show{display:flex}.precision-panel button{min-height:44px;padding:9px 13px}.precision-panel .place{background:#0c948e;border-color:#52e5d3}.precision-panel .cancel{background:#3d4950}
 
 .mobilebar,.mobile-backdrop{display:none}
 @media(max-width:720px){
@@ -94,7 +94,7 @@ proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],searchHighlights=[];
+let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],searchHighlights=[],precisionPointMode=false;
 let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
@@ -126,7 +126,7 @@ async function loadGoogle(){
   }
 }
 window.addEventListener('DOMContentLoaded',loadGoogle);
-function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:true,disableDoubleClickZoom:true});geocoder=new google.maps.Geocoder();enableUI();updateSearchMode();updateDiag();initMapCommandMenu();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(catastoActive&&map.getZoom()<17)status('Con Catasto attivo lo zoom minimo è 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
+function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:true,disableDoubleClickZoom:true});geocoder=new google.maps.Geocoder();enableUI();updateSearchMode();updateDiag();initMapCommandMenu();initPrecisionPointMode();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(catastoActive&&map.getZoom()<17)status('Con Catasto attivo lo zoom minimo è 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
 function normX(x,z){const n=2**z;return ((x%n)+n)%n}
 function tileLonLatBounds(coord,z){const n=2**z,x=normX(coord.x,z),y=coord.y;const lon1=x/n*360-180,lon2=(x+1)/n*360-180;const latFromY=v=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*v/n)));const lat1=latFromY(y+1),lat2=latFromY(y);return {west:lon1,south:lat1,east:lon2,north:lat2}}
 function zoneForLon(lon){if(lon<12)return 32;if(lon<18)return 33;return 34}
@@ -707,9 +707,15 @@ function setTool(t){
   document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
   const mp=$('mobPoint');
   if(mp)mp.classList.toggle('active',t==='point');
-  if(t==='point')status('Tocca la mappa: snap automatico a incrocio/vertice o linea vicina.');
-  else if(t==='delete')status('Tocca il punto che vuoi eliminare.');
-  else status('Tocca i vertici; fai doppio clic per terminare.');
+
+  if(t==='point'&&window.innerWidth<=720){
+    setPrecisionPointMode(true);
+  }else{
+    setPrecisionPointMode(false);
+    if(t==='point')status('Tocca la mappa: snap automatico a incrocio/vertice o linea vicina.');
+    else if(t==='delete')status('Tocca il punto che vuoi eliminare.');
+    else status('Tocca i vertici; fai doppio clic per terminare.');
+  }
   syncMapCommandState();
 }
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
@@ -768,6 +774,63 @@ function syncMapCommandState(){
   });
 }
 
+function initPrecisionPointMode(){
+  if(!map||$('precisionTarget'))return;
+
+  const target=document.createElement('div');
+  target.id='precisionTarget';
+  target.className='precision-target';
+  target.innerHTML='<span></span>';
+  $('map').appendChild(target);
+
+  const panel=document.createElement('div');
+  panel.id='precisionPanel';
+  panel.className='precision-panel';
+
+  const place=document.createElement('button');
+  place.type='button';
+  place.className='place';
+  place.textContent='✓ Piazza qui';
+  place.onclick=async e=>{
+    e.stopPropagation();
+    if(!precisionPointMode||!map)return;
+    const center=map.getCenter();
+    if(!center)return;
+    await insertPoint({lat:center.lat(),lng:center.lng()});
+    status('Punto inserito. Sposta ancora la mappa sotto il mirino per il prossimo punto.');
+  };
+
+  const cancel=document.createElement('button');
+  cancel.type='button';
+  cancel.className='cancel';
+  cancel.textContent='× Esci';
+  cancel.onclick=e=>{
+    e.stopPropagation();
+    setPrecisionPointMode(false);
+    drawingMode=null;
+    document.querySelectorAll('[data-tool]').forEach(b=>b.classList.remove('active'));
+    const mp=$('mobPoint');
+    if(mp)mp.classList.remove('active');
+    syncMapCommandState();
+    status('Posizionamento punti terminato.');
+  };
+
+  panel.appendChild(place);
+  panel.appendChild(cancel);
+  map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(panel);
+}
+
+function setPrecisionPointMode(on){
+  precisionPointMode=!!on && window.innerWidth<=720;
+  const target=$('precisionTarget');
+  const panel=$('precisionPanel');
+  if(target)target.classList.toggle('show',precisionPointMode);
+  if(panel)panel.classList.toggle('show',precisionPointMode);
+  if(precisionPointMode){
+    status('Posizionamento preciso: trascina la mappa sotto il mirino e premi “Piazza qui”.');
+  }
+}
+
 function setMobileDrawer(open,targetId){
   const panel=$('sidepanel'),backdrop=$('mobileBackdrop');
   if(!panel||!backdrop)return;
@@ -800,6 +863,10 @@ function cadClick(e){
   if(!drawingMode)return;
   if(drawingMode==='delete'){
     status('Per eliminare, tocca direttamente un punto.');
+    return;
+  }
+  if(drawingMode==='point'&&precisionPointMode){
+    status('Usa il mirino: trascina la mappa e premi “Piazza qui”.');
     return;
   }
   const p={lat:e.latLng.lat(),lng:e.latLng.lng()};
