@@ -12,6 +12,39 @@ function bad(res, status, message, extra = {}) {
   return res.status(status).json({ error: message, ...extra });
 }
 
+function decodeHtml(s) {
+  const named = {
+    amp: '&', quot: '"', apos: "'", nbsp: ' ',
+    agrave: 'à', egrave: 'è', eacute: 'é', igrave: 'ì',
+    ograve: 'ò', ugrave: 'ù', aacute: 'á', iacute: 'í',
+    oacute: 'ó', uacute: 'ú'
+  };
+  return String(s || '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&([a-z]+);/gi, (m, n) => named[n.toLowerCase()] ?? m)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function fetchText(url, timeout = 12000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeout);
+  try {
+    const r = await fetch(url, {
+      signal: ctl.signal,
+      headers: {
+        'User-Agent': 'Phillo-GeoCAD/13',
+        'Accept': 'application/xml,text/xml,text/html,*/*;q=0.8'
+      }
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function normalizeName(s) {
   return String(s || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
