@@ -56,6 +56,8 @@ body.app-fullscreen .layout{display:block!important;height:100dvh!important}
 body.app-fullscreen #map{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;z-index:80!important}
 body.app-fullscreen .status{display:none!important}
 body.app-fullscreen .map-command-control{z-index:100!important}
+body.precision-drawing .mobilebar,
+body.precision-drawing .map-command-control{display:none!important}
 
 </style></head><body>
 <header><h1>◈ Phillo GeoCAD <small>· v12 True Reprojection</small></h1><small>Google · Catasto · GPS · CAD</small></header>
@@ -951,6 +953,7 @@ function initPrecisionPointMode(){
 
 function setPrecisionPointMode(on){
   precisionPointMode=!!on && window.innerWidth<=720;
+  document.body.classList.toggle('precision-drawing',precisionPointMode);
   const target=precisionTargetEl||$('precisionTarget');
   const panel=$('precisionPanel');
   const place=$('precisionPlace');
