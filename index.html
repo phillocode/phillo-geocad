@@ -34,7 +34,7 @@ proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null,searchMarker=null;
+let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null;
 let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
@@ -272,13 +272,6 @@ async function searchCadastralParcel(){
     if(!catastoActive)activateCatasto();
     const p={lat:Number(data.center.lat),lng:Number(data.center.lng)};
     map.setCenter(p);
-
-    if(searchMarker)searchMarker.setMap(null);
-    searchMarker=new google.maps.Marker({
-      position:p,
-      map,
-      title:(data.comune?.name||data.comune?.code||comune)+' · Fg. '+foglio+' · Part. '+particella
-    });
 
     const label=(data.comune?.name||comune)+' ('+(data.comune?.code||'')+') · Foglio '+foglio+' · Particella '+particella;
     $('searchInfo').textContent=label+' · '+data.ref;
