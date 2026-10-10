@@ -9,6 +9,16 @@
 <h2>Google Maps</h2><div class="keybox"><div id="mapskeyinfo" class="hint">Chiave caricata automaticamente dal server; protezione tramite restrizioni dominio/API.</div></div>
 <h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
 <h2>Catasto</h2><button id="catastoBtn" class="full" disabled>Catasto · OFF</button><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label>
+<div class="keybox" style="margin-top:10px">
+  <div class="hint" style="margin-bottom:7px"><b>Ricerca catastale</b></div>
+  <input id="searchComune" type="text" placeholder="Comune (es. Busto Arsizio o B300)" disabled>
+  <div class="tools" style="margin-top:7px">
+    <input id="searchFoglio" type="text" inputmode="numeric" placeholder="Foglio" disabled>
+    <input id="searchParticella" type="text" placeholder="Particella" disabled>
+  </div>
+  <button id="searchParcel" class="full" disabled>Cerca e centra</button>
+  <div id="searchInfo" class="hint">Inserisci Comune, Foglio e Particella.</div>
+</div>
 <div class="hint">La v12 invia al proxy le coordinate tile x/y/z: il server riproietta realmente il raster catastale UTM nella griglia Web Mercator di Google, mantenendo retry e cache CDN.</div>
 <div id="diag" class="diag">Diagnostica WMS: non avviata.</div>
 <h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
@@ -24,7 +34,7 @@ proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null;
+let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null,searchMarker=null;
 let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
@@ -228,6 +238,64 @@ $('none').onclick=()=>{
   map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});
   status('Base Google nascosta.');
 };
+
+async function searchCadastralParcel(){
+  const comune=$('searchComune').value.trim();
+  const foglio=$('searchFoglio').value.trim();
+  const particella=$('searchParticella').value.trim();
+  if(!comune||!foglio||!particella){
+    $('searchInfo').textContent='Compila Comune, Foglio e Particella.';
+    status('Ricerca catastale: dati incompleti.');
+    return;
+  }
+
+  const btn=$('searchParcel');
+  btn.disabled=true;
+  btn.textContent='Ricerca…';
+  $('searchInfo').textContent='Interrogazione del Catasto in corso…';
+  status('Ricerca catastale in corso…');
+
+  try{
+    const q=new URLSearchParams({comune,foglio,particella});
+    const r=await fetch('/api/cerca-particella?'+q.toString(),{cache:'no-store'});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){
+      let msg=data.error||('Errore HTTP '+r.status);
+      if(data.options?.length){
+        msg+=': '+data.options.map(x=>x.name+' ('+x.code+')').join(', ');
+      }else if(data.matches?.length){
+        msg+=': '+data.matches.join(', ');
+      }
+      throw new Error(msg);
+    }
+
+    if(!catastoActive)activateCatasto();
+    const p={lat:Number(data.center.lat),lng:Number(data.center.lng)};
+    map.setCenter(p);
+
+    if(searchMarker)searchMarker.setMap(null);
+    searchMarker=new google.maps.Marker({
+      position:p,
+      map,
+      title:(data.comune?.name||data.comune?.code||comune)+' · Fg. '+foglio+' · Part. '+particella
+    });
+
+    const label=(data.comune?.name||comune)+' ('+(data.comune?.code||'')+') · Foglio '+foglio+' · Particella '+particella;
+    $('searchInfo').textContent=label+' · '+data.ref;
+    status('Particella trovata e centrata: '+label);
+  }catch(e){
+    $('searchInfo').textContent=e.message;
+    status('Ricerca catastale: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Cerca e centra';
+  }
+}
+
+$('searchParcel').onclick=searchCadastralParcel;
+['searchComune','searchFoglio','searchParticella'].forEach(id=>{
+  $(id).addEventListener('keydown',e=>{if(e.key==='Enter')searchCadastralParcel()});
+});
 
 $('locate').onclick=()=>{if(!navigator.geolocation){status('GPS non disponibile.');return}status('Ricerca GPS…');navigator.geolocation.getCurrentPosition(p=>{const q={lat:p.coords.latitude,lng:p.coords.longitude};map.setCenter(q);map.setZoom(18);if(gpsMarker)gpsMarker.setMap(null);gpsMarker=new google.maps.Marker({position:q,map,title:'Posizione GPS'});$('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(p.coords.accuracy)+' m';status('Mappa centrata sulla posizione GPS.')},e=>status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message)),{enableHighAccuracy:true,timeout:20000})};
 function setTool(t){drawingMode=t;tempPath=[];if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));status(t==='point'?'Tocca la mappa per inserire un punto.':'Tocca i vertici; fai doppio clic per terminare.')}
