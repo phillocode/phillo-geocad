@@ -1,12 +1,18 @@
+import { asyncBufferFromUrl, parquetReadObjects } from 'hyparquet';
+import { compressors } from 'hyparquet-compressors';
+
 const WFS = 'https://wfs.cartografia.agenziaentrate.gov.it/inspire/wfs/owfs01.php';
 const COMUNI_URL = 'https://www1.agenziaentrate.gov.it/servizi/codici/ricerca/VisualizzaTabella.php?ArcName=00T4';
+const PARQUET_BASE = 'https://raw.githubusercontent.com/ondata/dati_catastali/main/S_0000_ITALIA/anagrafica/';
+const PARQUET_INDEX = PARQUET_BASE + 'index.parquet';
 
 let comuniCache = null;
 let comuniCacheAt = 0;
+let regionByComuneCache = new Map();
 const COMUNI_CACHE_MS = 24 * 60 * 60 * 1000;
 
 function bad(res, status, message, extra = {}) {
-  res.status(status).json({ error: message, ...extra });
+  return res.status(status).json({ error: message, ...extra });
 }
 
 function decodeHtml(s) {
@@ -34,7 +40,7 @@ function normalizeName(s) {
     .trim();
 }
 
-async function fetchText(url, timeout = 10000) {
+async function fetchText(url, timeout = 12000) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeout);
   try {
@@ -54,7 +60,7 @@ async function fetchText(url, timeout = 10000) {
 
 async function getComuni() {
   if (comuniCache && Date.now() - comuniCacheAt < COMUNI_CACHE_MS) return comuniCache;
-  const html = await fetchText(COMUNI_URL, 12000);
+  const html = await fetchText(COMUNI_URL);
   const rows = [];
   const re = /<td[^>]*>\s*([A-Z]\d{3})\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/gi;
   let m;
@@ -71,35 +77,100 @@ async function getComuni() {
 async function resolveComune(value) {
   const raw = String(value || '').trim();
   if (/^[A-Za-z]\d{3}$/.test(raw)) {
-    return { code: raw.toUpperCase(), name: raw.toUpperCase() };
+    const code = raw.toUpperCase();
+    try {
+      const comuni = await getComuni();
+      const found = comuni.find(x => x.code === code);
+      return found || { code, name: code, norm: code };
+    } catch {
+      return { code, name: code, norm: code };
+    }
   }
+
   const norm = normalizeName(raw);
-  if (!norm) throw new Error('Comune mancante');
+  if (!norm) throw Object.assign(new Error('Comune mancante'), { status: 400 });
   const comuni = await getComuni();
   const exact = comuni.filter(x => x.norm === norm);
   if (exact.length === 1) return exact[0];
-  if (exact.length > 1) {
-    const err = new Error('Comune ambiguo');
-    err.options = exact.slice(0, 10);
-    throw err;
-  }
+
   const starts = comuni.filter(x => x.norm.startsWith(norm));
-  if (starts.length === 1) return starts[0];
-  const contains = comuni.filter(x => x.norm.includes(norm));
-  if (contains.length === 1) return contains[0];
-  const err = new Error(starts.length || contains.length ? 'Comune ambiguo' : 'Comune non trovato');
-  err.options = (starts.length ? starts : contains).slice(0, 10);
+  const candidates = exact.length ? exact : starts;
+  if (candidates.length === 1) return candidates[0];
+
+  const err = new Error(candidates.length ? 'Comune ambiguo' : 'Comune non trovato');
+  err.status = candidates.length ? 409 : 404;
+  err.options = candidates.slice(0, 12);
   throw err;
 }
 
-function makeSheetToken(value) {
-  const raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
-  if (/^\d{6}$/.test(raw)) return raw;
-  let m = raw.match(/^(\d+)([A-Z])$/);
-  if (m) return m[1].padStart(4, '0') + m[2] + '0';
-  m = raw.match(/^(\d+)$/);
-  if (m) return m[1].padStart(4, '0') + '00';
-  return null;
+function normalizeFoglio(value) {
+  const raw = String(value || '').trim();
+  if (!/^\d{1,4}$/.test(raw)) return null;
+  return raw.padStart(4, '0');
+}
+
+function normalizeParticella(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  return raw && /^[A-Z0-9._/-]+$/.test(raw) ? raw : null;
+}
+
+async function parquetQuery(url, columns, filter, timeout = 15000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeout);
+  try {
+    const file = await asyncBufferFromUrl({
+      url,
+      requestInit: {
+        signal: ctl.signal,
+        headers: { 'User-Agent': 'Phillo-GeoCAD/13' }
+      }
+    });
+
+    return await parquetReadObjects({
+      file,
+      columns,
+      filter,
+      compressors,
+      useOffsetIndex: true,
+      usePageIndex: true,
+      filterStrict: true
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function findRegionFile(comuneCode) {
+  if (regionByComuneCache.has(comuneCode)) return regionByComuneCache.get(comuneCode);
+
+  const rows = await parquetQuery(
+    PARQUET_INDEX,
+    ['comune', 'file', 'CODISTAT', 'DENOMINAZIONE_IT'],
+    { comune: { $eq: comuneCode } }
+  );
+  const row = rows[0];
+  if (!row?.file) return null;
+  const result = {
+    file: String(row.file),
+    denomination: row.DENOMINAZIONE_IT ? String(row.DENOMINAZIONE_IT) : null,
+    codistat: row.CODISTAT ? String(row.CODISTAT) : null
+  };
+  regionByComuneCache.set(comuneCode, result);
+  return result;
+}
+
+async function findParcelIndex(comuneCode, foglio, particella, regionFile) {
+  const rows = await parquetQuery(
+    PARQUET_BASE + encodeURIComponent(regionFile),
+    ['INSPIREID_LOCALID', 'comune', 'foglio', 'particella', 'x', 'y'],
+    {
+      comune: { $eq: comuneCode },
+      foglio: { $eq: foglio },
+      particella: { $eq: particella }
+    },
+    20000
+  );
+  return rows[0] || null;
 }
 
 function parseCorners(block) {
@@ -109,7 +180,7 @@ function parseCorners(block) {
   const a = lo[1].trim().split(/\s+/).map(Number);
   const b = hi[1].trim().split(/\s+/).map(Number);
   if (a.length < 2 || b.length < 2 || !a.every(Number.isFinite) || !b.every(Number.isFinite)) return null;
-  // EPSG:6706 nel servizio AdE viene restituito con ordine latitudine, longitudine.
+
   return {
     south: Math.min(a[0], b[0]),
     west: Math.min(a[1], b[1]),
@@ -124,17 +195,17 @@ function parseMembers(xml) {
   let m;
   while ((m = re.exec(xml))) {
     const b = m[1];
+    const localId = (b.match(/<CP:INSPIREID_LOCALID[^>]*>\s*([^<]+)<\/CP:INSPIREID_LOCALID>/i) || [])[1];
     const ref = (b.match(/<CP:NATIONALCADASTRALREFERENCE[^>]*>\s*([^<]+)<\/CP:NATIONALCADASTRALREFERENCE>/i) || [])[1];
     const label = (b.match(/<CP:LABEL[^>]*>\s*([^<]+)<\/CP:LABEL>/i) || [])[1];
     const admin = (b.match(/<CP:ADMINISTRATIVEUNIT[^>]*>\s*([^<]+)<\/CP:ADMINISTRATIVEUNIT>/i) || [])[1];
     const bounds = parseCorners(b);
-    if (!ref || !bounds) continue;
-    const sheetToken = (ref.match(/_([^.]*)\./) || [])[1] || '';
+    if (!bounds) continue;
     out.push({
-      ref: decodeHtml(ref),
+      localId: decodeHtml(localId || ''),
+      ref: decodeHtml(ref || ''),
       label: decodeHtml(label || ''),
       administrativeUnit: decodeHtml(admin || ''),
-      sheetToken,
       bounds,
       center: {
         lat: (bounds.south + bounds.north) / 2,
@@ -145,17 +216,37 @@ function parseMembers(xml) {
   return out;
 }
 
-function matchFoglio(items, foglioInput) {
-  const raw = String(foglioInput || '').trim().toUpperCase().replace(/\s+/g, '');
-  if (!raw) return [];
-  const m = raw.match(/^(\d+)([A-Z]?)$/);
-  if (!m) return [];
-  const num = m[1].padStart(4, '0');
-  const suffix = m[2];
-  if (suffix) return items.filter(x => x.sheetToken.startsWith(num + suffix));
-  const exactBase = items.filter(x => x.sheetToken === num + '00');
-  if (exactBase.length) return exactBase;
-  return items.filter(x => x.sheetToken.startsWith(num));
+async function fetchParcelGeometry(lat, lng, expectedLocalId) {
+  const radii = [0.000003, 0.00001, 0.00005];
+
+  for (const radius of radii) {
+    const qs = new URLSearchParams({
+      language: 'ita',
+      SERVICE: 'WFS',
+      VERSION: '2.0.0',
+      REQUEST: 'GetFeature',
+      TYPENAMES: 'CP:CadastralParcel',
+      SRSNAME: 'urn:ogc:def:crs:EPSG::6706',
+      COUNT: '100',
+      BBOX: [
+        (lat - radius).toFixed(7),
+        (lng - radius).toFixed(7),
+        (lat + radius).toFixed(7),
+        (lng + radius).toFixed(7)
+      ].join(',')
+    });
+
+    const xml = await fetchText(WFS + '?' + qs.toString(), 15000);
+    const members = parseMembers(xml);
+    const exact = members.find(x => x.localId === expectedLocalId);
+    if (exact) return exact;
+
+    // Fallback: il punto indice è garantito interno alla particella; se il WFS
+    // restituisce un solo elemento, possiamo usarlo anche se manca il localId.
+    if (members.length === 1) return members[0];
+  }
+
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -165,71 +256,76 @@ export default async function handler(req, res) {
   }
 
   const comuneInput = String(req.query.comune || '').trim();
-  const foglio = String(req.query.foglio || '').trim();
-  const particella = String(req.query.particella || '').trim();
+  const foglio = normalizeFoglio(req.query.foglio);
+  const particella = normalizeParticella(req.query.particella);
 
   if (!comuneInput || !foglio || !particella) {
-    return bad(res, 400, 'Inserisci Comune, Foglio e Particella');
+    return bad(res, 400, 'Inserisci Comune, Foglio e Particella validi');
   }
 
   let comune;
   try {
     comune = await resolveComune(comuneInput);
   } catch (err) {
-    return bad(res, err.message === 'Comune ambiguo' ? 409 : 404, err.message, {
+    return bad(res, err.status || 404, err.message || 'Comune non trovato', {
       options: err.options || []
     });
   }
 
-  const sheetToken = makeSheetToken(foglio);
-  if (!sheetToken) {
-    return bad(res, 400, 'Foglio non valido. Usa ad esempio 31 oppure 43A.');
-  }
-
-  const nationalRef = comune.code + '_' + sheetToken + '.' + particella;
-  const filter =
-    '<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0">' +
-      '<fes:PropertyIsEqualTo>' +
-        '<fes:ValueReference>NATIONALCADASTRALREFERENCE</fes:ValueReference>' +
-        '<fes:Literal>' + nationalRef + '</fes:Literal>' +
-      '</fes:PropertyIsEqualTo>' +
-    '</fes:Filter>';
-
-  const qs = new URLSearchParams({
-    language: 'ita',
-    SERVICE: 'WFS',
-    VERSION: '2.0.0',
-    REQUEST: 'GetFeature',
-    TYPENAMES: 'CP:CadastralParcel',
-    SRSNAME: 'urn:ogc:def:crs:EPSG::6706',
-    COUNT: '10',
-    FILTER: filter
-  });
-
-  let xml;
   try {
-    xml = await fetchText(WFS + '?' + qs.toString(), 15000);
-  } catch (err) {
-    return bad(res, 502, 'Servizio WFS catastale non disponibile');
-  }
+    const region = await findRegionFile(comune.code);
+    if (!region) return bad(res, 404, 'Comune non presente nell’indice catastale', { comune });
 
-  const all = parseMembers(xml);
-  const match = all.find(x => x.ref === nationalRef) || all[0];
+    const indexed = await findParcelIndex(comune.code, foglio, particella, region.file);
+    if (!indexed) {
+      return bad(res, 404, 'Particella non trovata nell’indice catastale', {
+        comune,
+        foglio,
+        particella
+      });
+    }
 
-  if (!match) {
-    return bad(res, 404, 'Particella non trovata', {
-      comune,
-      nationalRef,
-      hint: 'Se il foglio ha un allegato, prova ad indicarlo (es. 43A).'
+    const lng = Number(indexed.x) / 1000000;
+    const lat = Number(indexed.y) / 1000000;
+    const localId = String(indexed.INSPIREID_LOCALID || '');
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !localId) {
+      return bad(res, 502, 'Indice catastale incompleto per la particella richiesta');
+    }
+
+    const geometry = await fetchParcelGeometry(lat, lng, localId);
+    const fallbackBounds = {
+      south: lat - 0.00005,
+      west: lng - 0.00005,
+      north: lat + 0.00005,
+      east: lng + 0.00005
+    };
+
+    const result = geometry || {
+      localId,
+      ref: localId.replace(/^IT\.AGE\.PLA\./, ''),
+      label: particella,
+      administrativeUnit: comune.code,
+      bounds: fallbackBounds,
+      center: { lat, lng }
+    };
+
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+    return res.status(200).json({
+      comune: {
+        code: comune.code,
+        name: region.denomination || comune.name
+      },
+      foglio,
+      particella,
+      source: geometry ? 'indice+WFS' : 'indice',
+      indexPoint: { lat, lng },
+      ...result
     });
+  } catch (err) {
+    const message = err?.name === 'AbortError'
+      ? 'Timeout durante la ricerca catastale'
+      : String(err?.message || err);
+    return bad(res, 502, 'Ricerca catastale non disponibile', { detail: message });
   }
-
-  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
-  return res.status(200).json({
-    comune,
-    foglio,
-    particella,
-    nationalRef,
-    ...match
-  });
 }
