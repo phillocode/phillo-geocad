@@ -73,6 +73,8 @@ def build_project(project_name, raw_points):
     os.close(fd)
     try:
         db = sqlite3.connect(db_path)
+        db.execute("PRAGMA auto_vacuum=1")
+        db.execute("PRAGMA user_version=16")
         db.executescript(SCHEMA_SQL)
         db.execute("INSERT INTO android_metadata(locale) VALUES(?)", ("it_IT",))
         db.execute("""INSERT INTO CorrectTable
