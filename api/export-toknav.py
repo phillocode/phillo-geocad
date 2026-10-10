@@ -92,7 +92,7 @@ def build_project(project_name, raw_points):
                gpsID,entityID,netConvertType,pdaID,elevMask,startTime,endTime,epochCount,
                targetPointID,stakeoutSurveyPoint,stakeoutTimes,laserDistance,isCross,laserHRMS,
                laserVRMS,codeStyle)
-              VALUES(?,'',?,?,?,?,?,?,1,0,0,NULL,?,0,NULL,5,?,?,0,NULL,0,0,0.0,0,0.0,0.0,NULL)""",
+              VALUES(?,'',?,?,?,?,?,?,0,2,0,0,?,0,'',0,?,?,1,NULL,0,0,0.0,0,0.0,0.0,NULL)""",
               (point["name"], point["lat"], point["lng"], point["h"], point["n"], point["e"],
                point["h"], entity_id, dtms, dtms))
         db.commit()
