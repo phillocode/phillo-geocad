@@ -26,7 +26,7 @@
 <h2>Esportazione TOKNAV</h2><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
 <div class="notice"><b>Correzione v12.</b> True reprojection lato server: ogni pixel della tile Google viene trasformato in UTM, campionato dal WMS catastale e restituito nella posizione Web Mercator corretta. Retry e cache Vercel restano attivi.</div>
 <div class="notice warn"><b>Nota tecnica.</b> La v12 non stira più un rettangolo UTM dentro la tile Google: esegue un ricampionamento raster geometrico sul server, così i bordi delle tile condividono la stessa griglia globale.</div>
-<div class="hint" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)</div></aside><div id="map"></div></div><div id="status" class="status">Caricamento Google Maps…</div>
+<div class="hint" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)<br>Indice di ricerca Comune/Foglio/Particella: dati resi disponibili da OnData (CC BY 4.0).</div></aside><div id="map"></div></div><div id="status" class="status">Caricamento Google Maps…</div>
 <script src="https://cdn.jsdelivr.net/npm/proj4@2.12.1/dist/proj4.js"></script>
 <script>
 proj4.defs('EPSG:3857','+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs');
