@@ -4,7 +4,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;font:14px system-ui,Arial;background:#101d26;color:#eef7f8}header{height:58px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#142b35;border-bottom:1px solid #31515a}.layout{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 58px)}aside{padding:15px;overflow:auto;border-right:1px solid #34505a}#map{height:100%;min-height:460px;position:relative}h1{font-size:19px;margin:0}h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9ec8d0;margin:18px 0 9px}.line{display:flex;align-items:center;gap:8px;margin:9px 0}button,input,select{font:inherit}button{background:#244552;color:#fff;border:1px solid #4b7884;padding:9px 10px;border-radius:7px;cursor:pointer}button:hover{background:#32606e}.full{width:100%;margin:4px 0}.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}.active{background:#0c948e!important;border-color:#52e5d3!important}input[type=text]{width:100%;padding:9px;border-radius:6px;border:1px solid #53727b;background:#17333e;color:#fff}.hint{font-size:12px;line-height:1.45;color:#aac3c8}.notice{background:#1b3943;border-left:3px solid #21c1b4;padding:10px;margin:12px 0;font-size:12px;line-height:1.45}.warn{border-left-color:#e6b34a}.status{position:absolute;left:335px;bottom:12px;background:#142b35ed;padding:8px 11px;border-radius:7px;z-index:10;max-width:calc(100% - 355px)}.keybox{background:#193640;padding:10px;border-radius:8px}.diag{font-size:11px;background:#0c1820;padding:9px;border-radius:7px;line-height:1.45;word-break:break-word}.ok{color:#6fe3c8}.bad{color:#ff9e96}@media(max-width:720px){.layout{grid-template-columns:1fr;height:auto}.status{position:fixed;left:8px;right:8px;bottom:8px;max-width:none}#map{height:62vh}aside{border-right:0}}
 
-.map-command-control{margin:10px 0 0 10px;font:13px system-ui,Arial;user-select:none}.map-command-toggle{background:#142b35f2!important;border:1px solid #4b7884!important;color:#fff!important;border-radius:8px!important;padding:9px 12px!important;min-height:40px!important;box-shadow:0 2px 8px #0008}.map-command-panel{display:none;margin-top:6px;padding:7px;background:#142b35f2;border:1px solid #31515a;border-radius:10px;box-shadow:0 4px 18px #0009;grid-template-columns:repeat(2,minmax(92px,1fr));gap:6px;max-width:230px}.map-command-panel.open{display:grid}.map-command-panel button{min-height:40px;padding:8px 7px;font-size:12px;white-space:nowrap}.map-command-panel button.active{background:#0c948e!important;border-color:#52e5d3!important}.precision-target{display:none;position:absolute;width:42px;height:42px;transform:translate(-50%,-50%);z-index:99999;pointer-events:none}.precision-target.show{display:block}.precision-target.fullscreen-fixed{position:fixed!important;left:50vw!important;top:50vh!important;z-index:2147483647!important}.precision-target i{position:absolute;display:block;background:#ffea00;box-shadow:0 0 1px #000}.precision-target .pt-top{left:20.5px;top:0;width:1px;height:18px}.precision-target .pt-bottom{left:20.5px;bottom:0;width:1px;height:18px}.precision-target .pt-left{left:0;top:20.5px;width:18px;height:1px}.precision-target .pt-right{right:0;top:20.5px;width:18px;height:1px}.precision-panel{display:none;margin-bottom:84px;background:#142b35f2;border:1px solid #4b7884;border-radius:11px;padding:6px;gap:6px;box-shadow:0 4px 18px #0009}.precision-panel.show{display:flex}.precision-panel button{min-height:44px;padding:9px 13px}.precision-panel .place{background:#0c948e;border-color:#52e5d3}.precision-panel .cancel{background:#3d4950}
+.map-command-control{margin:10px 0 0 10px;font:13px system-ui,Arial;user-select:none}.map-command-toggle{background:#142b35f2!important;border:1px solid #4b7884!important;color:#fff!important;border-radius:8px!important;padding:9px 12px!important;min-height:40px!important;box-shadow:0 2px 8px #0008}.map-command-panel{display:none;margin-top:6px;padding:7px;background:#142b35f2;border:1px solid #31515a;border-radius:10px;box-shadow:0 4px 18px #0009;grid-template-columns:repeat(2,minmax(92px,1fr));gap:6px;max-width:230px}.map-command-panel.open{display:grid}.map-command-panel button{min-height:40px;padding:8px 7px;font-size:12px;white-space:nowrap}.map-command-panel button.active{background:#0c948e!important;border-color:#52e5d3!important}.precision-target{display:none;position:absolute;width:42px;height:42px;transform:translate(-50%,-50%);z-index:99999;pointer-events:none}.precision-target.show{display:block}.precision-target.fullscreen-fixed{position:fixed!important;left:50vw!important;top:50vh!important;z-index:2147483647!important}.precision-target i{position:absolute;display:block;background:#ffea00;box-shadow:0 0 1px #000}.precision-target .pt-top{left:20.5px;top:0;width:1px;height:18px}.precision-target .pt-bottom{left:20.5px;bottom:0;width:1px;height:18px}.precision-target .pt-left{left:0;top:20.5px;width:18px;height:1px}.precision-target .pt-right{right:0;top:20.5px;width:18px;height:1px}.precision-panel{display:none;margin-bottom:84px;background:#142b35f2;border:1px solid #4b7884;border-radius:11px;padding:6px;gap:6px;box-shadow:0 4px 18px #0009}.precision-panel.show{display:flex}.precision-panel button{min-height:44px;padding:9px 13px}.precision-panel .place{background:#0c948e;border-color:#52e5d3}.precision-panel .finish{background:#315b78;border-color:#72a7c7}.precision-panel .cancel{background:#3d4950}
 
 .mobilebar,.mobile-backdrop{display:none}
 @media(max-width:720px){
@@ -719,7 +719,8 @@ function setTool(t){
   const mp=$('mobPoint');
   if(mp)mp.classList.toggle('active',t==='point');
 
-  if(t==='point'&&window.innerWidth<=720){
+  const precisionTool=(t==='point'||t==='line'||t==='polygon')&&window.innerWidth<=720;
+  if(precisionTool){
     setPrecisionPointMode(true);
   }else{
     setPrecisionPointMode(false);
@@ -872,16 +873,57 @@ function initPrecisionPointMode(){
   panel.className='precision-panel';
 
   const place=document.createElement('button');
+  place.id='precisionPlace';
   place.type='button';
   place.className='place';
   place.textContent='✓ Piazza qui';
   place.onclick=async e=>{
     e.stopPropagation();
-    if(!precisionPointMode||!map)return;
+    if(!precisionPointMode||!map||!drawingMode)return;
     const center=map.getCenter();
     if(!center)return;
-    await insertPoint({lat:center.lat(),lng:center.lng()});
-    status('Punto inserito. Sposta ancora la mappa sotto il mirino per il prossimo punto.');
+    const raw={lat:center.lat(),lng:center.lng()};
+
+    if(drawingMode==='point'){
+      await insertPoint(raw);
+      status('Punto inserito. Sposta ancora la mappa sotto il mirino per il prossimo punto.');
+      return;
+    }
+
+    if(drawingMode==='line'||drawingMode==='polygon'){
+      status(catastoActive?'Ricerca aggancio del vertice su linee catastali/CAD…':'Ricerca aggancio del vertice sulle linee CAD…');
+      const snap=await snapPosition(raw);
+      tempPath.push(snap.position);
+      if(tempPolyline)tempPolyline.setMap(null);
+      tempPolyline=new google.maps.Polyline({
+        path:tempPath,
+        map,
+        strokeColor:'#ffcc00',
+        strokeWeight:3
+      });
+      const n=tempPath.length;
+      status(snapStatus('Vertice '+n+' inserito',snap)+' Premi “Termina” quando hai finito.');
+    }
+  };
+
+  const finish=document.createElement('button');
+  finish.id='precisionFinish';
+  finish.type='button';
+  finish.className='finish';
+  finish.textContent='✓ Termina';
+  finish.onclick=e=>{
+    e.stopPropagation();
+    if(drawingMode==='polygon'&&tempPath.length<3){
+      status('Il poligono richiede almeno 3 vertici.');
+      return;
+    }
+    if(drawingMode==='line'&&tempPath.length<2){
+      status('La linea richiede almeno 2 vertici.');
+      return;
+    }
+    finishShape();
+    if(drawingMode==='line')status('Linea salvata. Puoi iniziarne un’altra aggiungendo il primo vertice.');
+    else if(drawingMode==='polygon')status('Poligono salvato. Puoi iniziarne un altro aggiungendo il primo vertice.');
   };
 
   const cancel=document.createElement('button');
@@ -891,15 +933,18 @@ function initPrecisionPointMode(){
   cancel.onclick=e=>{
     e.stopPropagation();
     setPrecisionPointMode(false);
+    if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}
+    tempPath=[];
     drawingMode=null;
     document.querySelectorAll('[data-tool]').forEach(b=>b.classList.remove('active'));
     const mp=$('mobPoint');
     if(mp)mp.classList.remove('active');
     syncMapCommandState();
-    status('Posizionamento punti terminato.');
+    status('Disegno terminato.');
   };
 
   panel.appendChild(place);
+  panel.appendChild(finish);
   panel.appendChild(cancel);
   map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(panel);
 }
@@ -908,11 +953,28 @@ function setPrecisionPointMode(on){
   precisionPointMode=!!on && window.innerWidth<=720;
   const target=precisionTargetEl||$('precisionTarget');
   const panel=$('precisionPanel');
+  const place=$('precisionPlace');
+  const finish=$('precisionFinish');
+
   if(target)target.classList.toggle('show',precisionPointMode);
   if(panel)panel.classList.toggle('show',precisionPointMode);
   if(precisionTargetOverlay)precisionTargetOverlay.draw();
+
+  if(place){
+    place.textContent=drawingMode==='point'?'✓ Piazza qui':'＋ Aggiungi vertice';
+  }
+  if(finish){
+    finish.style.display=(drawingMode==='line'||drawingMode==='polygon')?'inline-block':'none';
+  }
+
   if(precisionPointMode){
-    status('Posizionamento preciso: trascina la mappa sotto il mirino e premi “Piazza qui”.');
+    if(drawingMode==='point'){
+      status('Posizionamento preciso: trascina la mappa sotto il mirino e premi “Piazza qui”.');
+    }else if(drawingMode==='line'){
+      status('Linea precisa: centra il mirino e premi “Aggiungi vertice”; usa “Termina” dopo almeno 2 vertici.');
+    }else if(drawingMode==='polygon'){
+      status('Poligono preciso: centra il mirino e premi “Aggiungi vertice”; usa “Termina” dopo almeno 3 vertici.');
+    }
   }
 }
 
@@ -950,8 +1012,9 @@ function cadClick(e){
     status('Per eliminare, tocca direttamente un punto.');
     return;
   }
-  if(drawingMode==='point'&&precisionPointMode){
-    status('Usa il mirino: trascina la mappa e premi “Piazza qui”.');
+  if(precisionPointMode&&(drawingMode==='point'||drawingMode==='line'||drawingMode==='polygon')){
+    if(drawingMode==='point')status('Usa il mirino: trascina la mappa e premi “Piazza qui”.');
+    else status('Usa il mirino: trascina la mappa e premi “Aggiungi vertice”.');
     return;
   }
   const p={lat:e.latLng.lat(),lng:e.latLng.lng()};
@@ -964,7 +1027,22 @@ function cadClick(e){
   tempPolyline=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3});
 }
 mapDblHandler=()=>finishShape();document.getElementById('map').addEventListener('dblclick',()=>setTimeout(finishShape,0));
-function finishShape(){if(!drawingMode||drawingMode==='point'||tempPath.length<2)return;if(tempPolyline)tempPolyline.setMap(null);let obj;if(drawingMode==='polygon'&&tempPath.length>=3)obj=new google.maps.Polygon({paths:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,fillColor:'#ffcc00',fillOpacity:.16,editable:true});else obj=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,editable:true});features.push({type:drawingMode,path:[...tempPath],obj});tempPath=[];tempPolyline=null;updateCount()}
+function finishShape(){
+  if(!drawingMode||drawingMode==='point'||drawingMode==='delete')return;
+  if(drawingMode==='line'&&tempPath.length<2)return;
+  if(drawingMode==='polygon'&&tempPath.length<3)return;
+  if(tempPolyline)tempPolyline.setMap(null);
+  let obj;
+  if(drawingMode==='polygon'){
+    obj=new google.maps.Polygon({paths:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,fillColor:'#ffcc00',fillOpacity:.16,editable:true});
+  }else{
+    obj=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,editable:true});
+  }
+  features.push({type:drawingMode,path:[...tempPath],obj});
+  tempPath=[];
+  tempPolyline=null;
+  updateCount();
+}
 function updateCount(){$('count').textContent=features.length+' elementi'}
 $('clear').onclick=()=>{features.forEach(f=>f.obj.setMap(null));features=[];updateCount();status('Disegni cancellati.')};
 function utm(p){return proj4('EPSG:4326','EPSG:32632',[p.lng,p.lat])}function dl(name,text,type='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
