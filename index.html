@@ -72,7 +72,7 @@
 <div id="diag" class="diag mobile-hide">Diagnostica WMS: non avviata.</div>
 <h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
 <h2>Disegno CAD</h2><div class="tools"><button data-tool="point" disabled>⊕ Punto</button><button data-tool="line" disabled>╱ Linea</button><button data-tool="polygon" disabled>⬡ Poligono</button><button id="clear" disabled>⌫ Cancella tutto</button></div><div id="count" class="hint">0 elementi</div>
-<h2>Esportazione TOKNAV</h2><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
+<h2>Esportazione TOKNAV</h2><button id="toknavProject" class="full" disabled>Esporta progetto TokNav</button><div id="toknavInfo" class="hint">Da smartphone prova a salvare direttamente nella cartella T Survey 2.0 / Project.</div><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
 <div class="notice mobile-hide"><b>Correzione v12.</b> True reprojection lato server: ogni pixel della tile Google viene trasformato in UTM, campionato dal WMS catastale e restituito nella posizione Web Mercator corretta. Retry e cache Vercel restano attivi.</div>
 <div class="notice warn mobile-hide"><b>Nota tecnica.</b> La v12 non stira più un rettangolo UTM dentro la tile Google: esegue un ricampionamento raster geometrico sul server, così i bordi delle tile condividono la stessa griglia globale.</div>
 <div class="hint mobile-hide" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)<br>Indice di ricerca Comune/Foglio/Particella: dati resi disponibili da OnData (CC BY 4.0).</div></aside><div id="map"></div></div>
@@ -726,6 +726,132 @@ function finishShape(){if(!drawingMode||drawingMode==='point'||tempPath.length<2
 function updateCount(){$('count').textContent=features.length+' elementi'}
 $('clear').onclick=()=>{features.forEach(f=>f.obj.setMap(null));features=[];updateCount();status('Disegni cancellati.')};
 function utm(p){return proj4('EPSG:4326','EPSG:32632',[p.lng,p.lat])}function dl(name,text,type='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+function safeProjectName(v){
+  return String(v||'').trim()
+    .replace(/[\\/:*?"<>|]+/g,'_')
+    .replace(/\s+/g,'_')
+    .replace(/[^A-Za-z0-9._-]/g,'_')
+    .replace(/^[._]+|[._]+$/g,'')
+    .slice(0,60)||'GeoCAD_Project';
+}
+
+function base64Bytes(s){
+  const bin=atob(s),out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
+  return out;
+}
+
+async function writeTokNavFiles(root,data){
+  let projectDir;
+  try{
+    projectDir=await root.getDirectoryHandle(data.projectName);
+    if(!confirm('Il progetto '+data.projectName+' esiste già. Sovrascrivere i file GeoCAD?'))return false;
+  }catch{
+    projectDir=await root.getDirectoryHandle(data.projectName,{create:true});
+  }
+
+  for(const file of data.files){
+    const parts=file.path.split('/').filter(Boolean);
+    const filename=parts.pop();
+    let dir=projectDir;
+    for(const part of parts)dir=await dir.getDirectoryHandle(part,{create:true});
+    const handle=await dir.getFileHandle(filename,{create:true});
+    const writable=await handle.createWritable();
+    await writable.write(base64Bytes(file.base64));
+    await writable.close();
+  }
+  return true;
+}
+
+async function exportTokNavProject(){
+  const pointFeatures=features.filter(f=>f.type==='point'&&f.path?.[0]);
+  if(!pointFeatures.length){
+    $('toknavInfo').textContent='Inserisci almeno un punto prima di esportare.';
+    status('TokNav: nessun punto da esportare.');
+    return;
+  }
+
+  const d=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const suggested='GeoCAD_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+  const entered=prompt('Nome del progetto TokNav',suggested);
+  if(entered===null)return;
+  const projectName=safeProjectName(entered);
+
+  const points=pointFeatures.map((f,i)=>{
+    const p=f.path[0],q=utm(p);
+    return {name:'GEO'+(i+1),lat:p.lat,lng:p.lng,e:q[0],n:q[1],h:0};
+  });
+  const payload=JSON.stringify({projectName,points});
+
+  let directory=null;
+  if(typeof window.showDirectoryPicker==='function'){
+    try{
+      status('Seleziona la cartella T Survey 2.0 / Project…');
+      directory=await window.showDirectoryPicker({mode:'readwrite'});
+    }catch(e){
+      if(e?.name==='AbortError'){
+        status('Esportazione TokNav annullata.');
+        return;
+      }
+      directory=null;
+    }
+  }
+
+  const btn=$('toknavProject');
+  btn.disabled=true;
+  btn.textContent='Creazione progetto…';
+
+  try{
+    if(directory){
+      const r=await fetch('/api/export-toknav?mode=files',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:payload,
+        cache:'no-store'
+      });
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(data.error||('Errore HTTP '+r.status));
+      const written=await writeTokNavFiles(directory,data);
+      if(!written){
+        status('Esportazione TokNav annullata.');
+        return;
+      }
+      $('toknavInfo').textContent='Progetto '+data.projectName+' scritto nella cartella selezionata · '+points.length+' punti.';
+      status('Progetto TokNav salvato: '+data.projectName+' · '+points.length+' punti.');
+      if(window.innerWidth<=720)setMobileDrawer(false);
+    }else{
+      const r=await fetch('/api/export-toknav?mode=zip',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:payload,
+        cache:'no-store'
+      });
+      if(!r.ok){
+        const data=await r.json().catch(()=>({}));
+        throw new Error(data.error||('Errore HTTP '+r.status));
+      }
+      const blob=await r.blob();
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=projectName+'.zip';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+      $('toknavInfo').textContent='Accesso diretto alle cartelle non disponibile: creato '+projectName+'.zip.';
+      status('Progetto TokNav scaricato come ZIP. Estrailo in T Survey 2.0 / Project.');
+    }
+  }catch(e){
+    $('toknavInfo').textContent='Errore: '+e.message;
+    status('Esportazione TokNav: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Esporta progetto TokNav';
+  }
+}
+
+$('toknavProject').onclick=exportTokNavProject;
+
 $('csv').onclick=()=>{let s='NOME;EST;NORD;QUOTA\n',n=1;features.filter(f=>f.type==='point').forEach(f=>{const q=utm(f.path[0]);s+='P'+n+++';'+q[0].toFixed(3)+';'+q[1].toFixed(3)+';0.000\n'});dl('phillo_punti_toknav.csv',s,'text/csv')};
 $('dxf').onclick=()=>{let d='0\nSECTION\n2\nENTITIES\n';features.forEach(f=>{if(f.type==='point'){const q=utm(f.path[0]);d+='0\nPOINT\n8\nPUNTI\n10\n'+q[0]+'\n20\n'+q[1]+'\n30\n0\n'}else{d+='0\nLWPOLYLINE\n8\nCAD\n90\n'+f.path.length+'\n70\n'+(f.type==='polygon'?1:0)+'\n';f.path.forEach(p=>{const q=utm(p);d+='10\n'+q[0]+'\n20\n'+q[1]+'\n'})}});d+='0\nENDSEC\n0\nEOF\n';dl('phillo_geocad_toknav.dxf',d)};
 $('geojson').onclick=()=>{const gj={type:'FeatureCollection',features:features.map(f=>({type:'Feature',properties:{},geometry:{type:f.type==='point'?'Point':f.type==='line'?'LineString':'Polygon',coordinates:f.type==='point'?[f.path[0].lng,f.path[0].lat]:f.type==='polygon'?[f.path.map(p=>[p.lng,p.lat]).concat([[f.path[0].lng,f.path[0].lat]])]:f.path.map(p=>[p.lng,p.lat])}}))};dl('phillo_geocad.geojson',JSON.stringify(gj,null,2),'application/geo+json')};
