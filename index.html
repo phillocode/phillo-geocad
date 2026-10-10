@@ -156,7 +156,7 @@ function makeCadastreMapType(){
   };
 }
 function installCadastre(){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);updateDiag()}
-let catastoActive=false,previousBaseType='roadmap',previousStyles=null;
+let catastoActive=false,previousBaseType='roadmap',previousStyles=null,previousMinZoom=null,previousMaxZoom=null;
 
 function resetCadStats(){
   tileLoads=0;tileErrors=0;proxyRequests=0;serverRetries=0;reprojectedResponses=0;
@@ -176,6 +176,8 @@ function activateCatasto(){
   const center=map.getCenter();
   previousBaseType=map.getMapTypeId()||'roadmap';
   previousStyles=map.get('styles')||null;
+  previousMinZoom=map.get('minZoom')??null;
+  previousMaxZoom=map.get('maxZoom')??null;
 
   resetCadStats();
   map.overlayMapTypes.clear();
@@ -183,26 +185,34 @@ function activateCatasto(){
   map.overlayMapTypes.insertAt(0,cadOverlay);
 
   map.setMapTypeId('roadmap');
-  map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});
+  map.setOptions({
+    styles:[{featureType:'all',stylers:[{visibility:'off'}]}],
+    minZoom:17,
+    maxZoom:22
+  });
 
   map.setZoom(17);
   if(center)map.setCenter(center);
 
   setCatastoButtonState(true);
   updateDiag();
-  status('Catasto ATTIVO · zoom 17 · centro mantenuto.');
+  status('Catasto ATTIVO · zoom consentito 17–22 · centro mantenuto.');
 }
 
 function deactivateCatasto(){
   if(!map)return;
   const center=map.getCenter();
   map.overlayMapTypes.clear();
-  map.setOptions({styles:previousStyles});
+  map.setOptions({
+    styles:previousStyles,
+    minZoom:previousMinZoom,
+    maxZoom:previousMaxZoom
+  });
   map.setMapTypeId(previousBaseType||'roadmap');
   if(center)map.setCenter(center);
   setCatastoButtonState(false);
   updateDiag();
-  status('Catasto spento · base precedente ripristinata.');
+  status('Catasto spento · base e limiti zoom precedenti ripristinati.');
 }
 
 function toggleCatasto(){
