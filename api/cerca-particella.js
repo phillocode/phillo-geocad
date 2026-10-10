@@ -183,6 +183,25 @@ function parseCorners(block) {
   };
 }
 
+function parsePaths(block) {
+  const paths = [];
+  const re = /<gml:posList(?:\s[^>]*)?>\s*([\s\S]*?)<\/gml:posList>/gi;
+  let m;
+  while ((m = re.exec(block))) {
+    const nums = m[1].trim().split(/\s+/).map(Number).filter(Number.isFinite);
+    const path = [];
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      const lat = nums[i];
+      const lng = nums[i + 1];
+      if (lat >= 30 && lat <= 50 && lng >= 5 && lng <= 20) {
+        path.push({ lat, lng });
+      }
+    }
+    if (path.length >= 3) paths.push(path);
+  }
+  return paths;
+}
+
 function parseMembers(xml) {
   const out = [];
   const re = /<wfs:member>([\s\S]*?)<\/wfs:member>/gi;
@@ -201,6 +220,7 @@ function parseMembers(xml) {
       label: decodeHtml(label || ''),
       administrativeUnit: decodeHtml(admin || ''),
       bounds,
+      paths: parsePaths(b),
       center: {
         lat: (bounds.south + bounds.north) / 2,
         lng: (bounds.west + bounds.east) / 2
