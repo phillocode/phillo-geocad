@@ -34,7 +34,7 @@ proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null;
+let map=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],gpsMarker=null,searchHighlights=[];
 let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
@@ -239,6 +239,63 @@ $('none').onclick=()=>{
   status('Base Google nascosta.');
 };
 
+function clearParcelHighlight(){
+  searchHighlights.forEach(x=>x.setMap(null));
+  searchHighlights=[];
+}
+
+function highlightParcel(data){
+  clearParcelHighlight();
+  const bounds=new google.maps.LatLngBounds();
+
+  if(Array.isArray(data.paths)&&data.paths.length){
+    data.paths.forEach(path=>{
+      const clean=(path||[])
+        .filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)))
+        .map(p=>({lat:Number(p.lat),lng:Number(p.lng)}));
+      if(clean.length<3)return;
+      clean.forEach(p=>bounds.extend(p));
+      searchHighlights.push(new google.maps.Polygon({
+        paths:clean,
+        map,
+        strokeColor:'#ffea00',
+        strokeOpacity:1,
+        strokeWeight:4,
+        fillColor:'#ffea00',
+        fillOpacity:.20,
+        clickable:false,
+        zIndex:50
+      }));
+    });
+  }
+
+  if(!searchHighlights.length&&data.bounds){
+    const b={
+      south:Number(data.bounds.south),
+      west:Number(data.bounds.west),
+      north:Number(data.bounds.north),
+      east:Number(data.bounds.east)
+    };
+    if(Object.values(b).every(Number.isFinite)){
+      bounds.extend({lat:b.south,lng:b.west});
+      bounds.extend({lat:b.north,lng:b.east});
+      searchHighlights.push(new google.maps.Rectangle({
+        bounds:b,
+        map,
+        strokeColor:'#ffea00',
+        strokeOpacity:1,
+        strokeWeight:4,
+        fillColor:'#ffea00',
+        fillOpacity:.12,
+        clickable:false,
+        zIndex:50
+      }));
+    }
+  }
+
+  return !bounds.isEmpty();
+}
+
 async function searchCadastralParcel(){
   const comune=$('searchComune').value.trim();
   const foglio=$('searchFoglio').value.trim();
@@ -253,6 +310,7 @@ async function searchCadastralParcel(){
   btn.disabled=true;
   btn.textContent='Ricerca…';
   $('searchInfo').textContent='Interrogazione del Catasto in corso…';
+  clearParcelHighlight();
   status('Ricerca catastale in corso…');
 
   try{
@@ -272,10 +330,11 @@ async function searchCadastralParcel(){
     if(!catastoActive)activateCatasto();
     const p={lat:Number(data.center.lat),lng:Number(data.center.lng)};
     map.setCenter(p);
+    highlightParcel(data);
 
     const label=(data.comune?.name||comune)+' ('+(data.comune?.code||'')+') · Foglio '+foglio+' · Particella '+particella;
     $('searchInfo').textContent=label+' · '+data.ref;
-    status('Particella trovata e centrata: '+label);
+    status('Particella trovata, centrata ed evidenziata: '+label);
   }catch(e){
     $('searchInfo').textContent=e.message;
     status('Ricerca catastale: '+e.message);
