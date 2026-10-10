@@ -772,6 +772,25 @@ async function exportTokNavProject(){
     return;
   }
 
+  let directory=null;
+  let directError='';
+
+  if(typeof window.showDirectoryPicker==='function'){
+    try{
+      status('Seleziona T Survey 2.0 / Project…');
+      directory=await window.showDirectoryPicker({mode:'readwrite'});
+    }catch(e){
+      if(e?.name==='AbortError'){
+        status('Selezione cartella annullata.');
+        return;
+      }
+      directError=(e?.name||'Errore')+(e?.message?': '+e.message:'');
+      console.warn('TokNav direct folder export unavailable',e);
+    }
+  }else{
+    directError='Il browser non espone showDirectoryPicker';
+  }
+
   const d=new Date();
   const pad=n=>String(n).padStart(2,'0');
   const suggested='GeoCAD_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
@@ -784,20 +803,6 @@ async function exportTokNavProject(){
     return {name:'GEO'+(i+1),lat:p.lat,lng:p.lng,e:q[0],n:q[1],h:0};
   });
   const payload=JSON.stringify({projectName,points});
-
-  let directory=null;
-  if(typeof window.showDirectoryPicker==='function'){
-    try{
-      status('Seleziona la cartella T Survey 2.0 / Project…');
-      directory=await window.showDirectoryPicker({mode:'readwrite'});
-    }catch(e){
-      if(e?.name==='AbortError'){
-        status('Esportazione TokNav annullata.');
-        return;
-      }
-      directory=null;
-    }
-  }
 
   const btn=$('toknavProject');
   btn.disabled=true;
@@ -819,7 +824,7 @@ async function exportTokNavProject(){
         return;
       }
       $('toknavInfo').textContent='Progetto '+data.projectName+' scritto nella cartella selezionata · '+points.length+' punti.';
-      status('Progetto TokNav salvato: '+data.projectName+' · '+points.length+' punti.');
+      status('Progetto TokNav salvato direttamente: '+data.projectName+' · '+points.length+' punti.');
       if(window.innerWidth<=720)setMobileDrawer(false);
     }else{
       const r=await fetch('/api/export-toknav?mode=zip',{
@@ -838,8 +843,8 @@ async function exportTokNavProject(){
       a.download=projectName+'.zip';
       a.click();
       setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-      $('toknavInfo').textContent='Accesso diretto alle cartelle non disponibile: creato '+projectName+'.zip.';
-      status('Progetto TokNav scaricato come ZIP. Estrailo in T Survey 2.0 / Project.');
+      $('toknavInfo').textContent='Scrittura diretta non disponibile ('+directError+'). Creato '+projectName+'.zip.';
+      status('TokNav: browser senza accesso diretto alla cartella; creato ZIP.');
     }
   }catch(e){
     $('toknavInfo').textContent='Errore: '+e.message;
@@ -849,7 +854,6 @@ async function exportTokNavProject(){
     btn.textContent='Esporta progetto TokNav';
   }
 }
-
 $('toknavProject').onclick=exportTokNavProject;
 
 $('csv').onclick=()=>{let s='NOME;EST;NORD;QUOTA\n',n=1;features.filter(f=>f.type==='point').forEach(f=>{const q=utm(f.path[0]);s+='P'+n+++';'+q[0].toFixed(3)+';'+q[1].toFixed(3)+';0.000\n'});dl('phillo_punti_toknav.csv',s,'text/csv')};
