@@ -46,6 +46,17 @@
   input[type=text]{min-height:42px;font-size:16px}
 }
 
+
+body.app-fullscreen{overflow:hidden}
+body.app-fullscreen header,
+body.app-fullscreen aside,
+body.app-fullscreen .mobilebar,
+body.app-fullscreen .mobile-backdrop{display:none!important}
+body.app-fullscreen .layout{display:block!important;height:100dvh!important}
+body.app-fullscreen #map{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;z-index:80!important}
+body.app-fullscreen .status{display:none!important}
+body.app-fullscreen .map-command-control{z-index:100!important}
+
 </style></head><body>
 <header><h1>◈ Phillo GeoCAD <small>· v12 True Reprojection</small></h1><small>Google · Catasto · GPS · CAD</small></header>
 <div class="layout"><aside id="sidepanel">
@@ -94,7 +105,7 @@ proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],searchHighlights=[],precisionPointMode=false,precisionTargetOverlay=null,precisionTargetEl=null;
+let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],searchHighlights=[],precisionPointMode=false,precisionTargetOverlay=null,precisionTargetEl=null,appFullscreen=false;
 let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
@@ -126,7 +137,7 @@ async function loadGoogle(){
   }
 }
 window.addEventListener('DOMContentLoaded',loadGoogle);
-function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:true,disableDoubleClickZoom:true});geocoder=new google.maps.Geocoder();enableUI();updateSearchMode();updateDiag();initMapCommandMenu();initPrecisionPointMode();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(catastoActive&&map.getZoom()<17)status('Con Catasto attivo lo zoom minimo è 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
+function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:false,disableDoubleClickZoom:true});geocoder=new google.maps.Geocoder();enableUI();updateSearchMode();updateDiag();initMapCommandMenu();initPrecisionPointMode();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(catastoActive&&map.getZoom()<17)status('Con Catasto attivo lo zoom minimo è 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
 function normX(x,z){const n=2**z;return ((x%n)+n)%n}
 function tileLonLatBounds(coord,z){const n=2**z,x=normX(coord.x,z),y=coord.y;const lon1=x/n*360-180,lon2=(x+1)/n*360-180;const latFromY=v=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*v/n)));const lat1=latFromY(y+1),lat2=latFromY(y);return {west:lon1,south:lat1,east:lon2,north:lat2}}
 function zoneForLon(lon){if(lon<12)return 32;if(lon<18)return 33;return 34}
@@ -720,6 +731,27 @@ function setTool(t){
 }
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
 
+
+function setAppFullscreen(on){
+  appFullscreen=!!on;
+  document.body.classList.toggle('app-fullscreen',appFullscreen);
+  const btn=document.querySelector('[data-cmd="fullscreen"]');
+  if(btn)btn.textContent=appFullscreen?'↙ Esci schermo':'⛶ Schermo';
+  requestAnimationFrame(()=>{
+    if(map){
+      google.maps.event.trigger(map,'resize');
+      const center=map.getCenter();
+      if(center)map.setCenter(center);
+    }
+    if(precisionTargetOverlay)precisionTargetOverlay.draw();
+  });
+  status(appFullscreen?'Mappa a tutto schermo · nessun popup del browser.':'Vista normale ripristinata.');
+}
+function toggleAppFullscreen(){if(!appFullscreen)setMobileDrawer(false);setAppFullscreen(!appFullscreen)}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&appFullscreen)setAppFullscreen(false);
+});
+
 function initMapCommandMenu(){
   if(!map||$('mapCommandControl'))return;
   const wrap=document.createElement('div');
@@ -752,6 +784,7 @@ function initMapCommandMenu(){
   addButton('⬡ Poligono',()=>setTool('polygon'),'polygon');
   addButton('▱ Catasto',()=>toggleCatasto(),'catasto');
   addButton('◎ Posizione',()=>$('locate').click());
+  addButton('⛶ Schermo',()=>toggleAppFullscreen(),'fullscreen');
   addButton('⇩ TokNav',()=>exportTokNavProject());
   addButton('⌫ Tutto',()=>$('clear').click());
 
@@ -769,7 +802,7 @@ function syncMapCommandState(){
   if(!root)return;
   root.querySelectorAll('[data-cmd]').forEach(b=>{
     const key=b.dataset.cmd;
-    const on=key==='catasto'?catastoActive:key===drawingMode;
+    const on=key==='catasto'?catastoActive:key==='fullscreen'?appFullscreen:key===drawingMode;
     b.classList.toggle('active',!!on);
   });
 }
