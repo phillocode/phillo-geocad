@@ -92,8 +92,14 @@ async function resolveComune(value) {
   throw err;
 }
 
-function cqlQuote(s) {
-  return String(s).replace(/'/g, "''");
+function makeSheetToken(value) {
+  const raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (/^\d{6}$/.test(raw)) return raw;
+  let m = raw.match(/^(\d+)([A-Z])$/);
+  if (m) return m[1].padStart(4, '0') + m[2] + '0';
+  m = raw.match(/^(\d+)$/);
+  if (m) return m[1].padStart(4, '0') + '00';
+  return null;
 }
 
 function parseCorners(block) {
@@ -175,18 +181,22 @@ export default async function handler(req, res) {
     });
   }
 
-  const cql = "ADMINISTRATIVEUNIT='" + cqlQuote(comune.code) +
-    "' AND LABEL='" + cqlQuote(particella) + "'";
+  const sheetToken = makeSheetToken(foglio);
+  if (!sheetToken) {
+    return bad(res, 400, 'Foglio non valido. Usa ad esempio 31 oppure 43A.');
+  }
+
+  const nationalRef = comune.code + '_' + sheetToken + '.' + particella;
+  const featureId = 'CadastralParcel.IT.AGE.PLA.' + nationalRef;
 
   const qs = new URLSearchParams({
     language: 'ita',
     SERVICE: 'WFS',
     VERSION: '2.0.0',
     REQUEST: 'GetFeature',
-    TYPENAMES: 'CP:CadastralParcel',
-    SRSNAME: 'urn:ogc:def:crs:EPSG::6706',
-    COUNT: '100',
-    CQL_FILTER: cql
+    STOREDQUERY_ID: 'urn:ogc:def:query:OGC-WFS::GetFeatureById',
+    ID: featureId,
+    SRSNAME: 'urn:ogc:def:crs:EPSG::6706'
   });
 
   let xml;
@@ -197,19 +207,13 @@ export default async function handler(req, res) {
   }
 
   const all = parseMembers(xml);
-  const matches = matchFoglio(all, foglio);
+  const match = all.find(x => x.ref === nationalRef) || all[0];
 
-  if (!matches.length) {
+  if (!match) {
     return bad(res, 404, 'Particella non trovata', {
       comune,
-      foundSameParcelOtherSheets: all.map(x => x.ref).slice(0, 20)
-    });
-  }
-
-  if (matches.length > 1) {
-    return bad(res, 409, 'Più particelle corrispondono alla ricerca', {
-      comune,
-      matches: matches.map(x => x.ref).slice(0, 20)
+      nationalRef,
+      hint: 'Se il foglio ha un allegato, prova ad indicarlo (es. 43A).'
     });
   }
 
@@ -218,6 +222,7 @@ export default async function handler(req, res) {
     comune,
     foglio,
     particella,
-    ...matches[0]
+    nationalRef,
+    ...match
   });
 }
