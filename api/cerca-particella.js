@@ -187,16 +187,23 @@ export default async function handler(req, res) {
   }
 
   const nationalRef = comune.code + '_' + sheetToken + '.' + particella;
-  const featureId = 'CadastralParcel.IT.AGE.PLA.' + nationalRef;
+  const filter =
+    '<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0">' +
+      '<fes:PropertyIsEqualTo>' +
+        '<fes:ValueReference>NATIONALCADASTRALREFERENCE</fes:ValueReference>' +
+        '<fes:Literal>' + nationalRef + '</fes:Literal>' +
+      '</fes:PropertyIsEqualTo>' +
+    '</fes:Filter>';
 
   const qs = new URLSearchParams({
     language: 'ita',
     SERVICE: 'WFS',
     VERSION: '2.0.0',
     REQUEST: 'GetFeature',
-    STOREDQUERY_ID: 'urn:ogc:def:query:OGC-WFS::GetFeatureById',
-    ID: featureId,
-    SRSNAME: 'urn:ogc:def:crs:EPSG::6706'
+    TYPENAMES: 'CP:CadastralParcel',
+    SRSNAME: 'urn:ogc:def:crs:EPSG::6706',
+    COUNT: '10',
+    FILTER: filter
   });
 
   let xml;
