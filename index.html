@@ -71,7 +71,7 @@
 <div class="hint mobile-hide">La v12 invia al proxy le coordinate tile x/y/z: il server riproietta realmente il raster catastale UTM nella griglia Web Mercator di Google, mantenendo retry e cache CDN.</div>
 <div id="diag" class="diag mobile-hide">Diagnostica WMS: non avviata.</div>
 <h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
-<h2>Disegno CAD</h2><div class="tools"><button data-tool="point" disabled>⊕ Punto</button><button data-tool="line" disabled>╱ Linea</button><button data-tool="polygon" disabled>⬡ Poligono</button><button id="clear" disabled>⌫ Cancella tutto</button></div><div id="count" class="hint">0 elementi</div>
+<h2>Disegno CAD</h2><div class="tools"><button data-tool="point" disabled>⊕ Punto</button><button data-tool="line" disabled>╱ Linea</button><button data-tool="polygon" disabled>⬡ Poligono</button><button data-tool="delete" disabled>⌫ Elimina punto</button><button id="clear" disabled>⌫ Cancella tutto</button></div><div id="count" class="hint">0 elementi</div>
 <h2>Esportazione TOKNAV</h2><button id="toknavProject" class="full" disabled>Esporta progetto TokNav</button><div id="toknavInfo" class="hint">Da smartphone prova a salvare direttamente nella cartella T Survey 2.0 / Project.</div><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
 <div class="notice mobile-hide"><b>Correzione v12.</b> True reprojection lato server: ogni pixel della tile Google viene trasformato in UTM, campionato dal WMS catastale e restituito nella posizione Web Mercator corretta. Retry e cache Vercel restano attivi.</div>
 <div class="notice warn mobile-hide"><b>Nota tecnica.</b> La v12 non stira più un rettangolo UTM dentro la tile Google: esegue un ricampionamento raster geometrico sul server, così i bordi delle tile condividono la stessa griglia globale.</div>
@@ -647,6 +647,14 @@ async function insertPoint(raw){
     });
     const feature={type:'point',path:[p],obj};
 
+    obj.addListener('click',()=>{
+      if(drawingMode==='delete'){
+        deletePointFeature(feature);
+        return;
+      }
+      const pointIndex=features.filter(f=>f.type==='point').indexOf(feature)+1;
+      if(pointIndex>0)status('Punto '+pointIndex+' selezionato · trascinalo per spostarlo oppure usa "Elimina punto".');
+    });
     obj.addListener('dragstart',()=>status('Sposta il punto e rilascialo: verrà cercato nuovamente lo snap.'));
     obj.addListener('drag',e=>{
       const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
@@ -669,6 +677,26 @@ async function insertPoint(raw){
   }
 }
 
+function renumberPointMarkers(){
+  let n=1;
+  features.filter(f=>f.type==='point').forEach(f=>{
+    if(f.obj?.setLabel)f.obj.setLabel(String(n++));
+  });
+}
+
+function deletePointFeature(feature){
+  if(!feature||feature.type!=='point')return;
+  const pointIndex=features.filter(f=>f.type==='point').indexOf(feature)+1;
+  if(pointIndex<1)return;
+  if(!confirm('Eliminare il punto '+pointIndex+'?'))return;
+  if(feature.obj?.setMap)feature.obj.setMap(null);
+  const idx=features.indexOf(feature);
+  if(idx>=0)features.splice(idx,1);
+  renumberPointMarkers();
+  updateCount();
+  status('Punto '+pointIndex+' eliminato.');
+}
+
 function setTool(t){
   drawingMode=t;
   tempPath=[];
@@ -676,9 +704,9 @@ function setTool(t){
   document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
   const mp=$('mobPoint');
   if(mp)mp.classList.toggle('active',t==='point');
-  status(t==='point'
-    ?'Tocca la mappa: snap automatico a incrocio/vertice o linea vicina.'
-    :'Tocca i vertici; fai doppio clic per terminare.');
+  if(t==='point')status('Tocca la mappa: snap automatico a incrocio/vertice o linea vicina.');
+  else if(t==='delete')status('Tocca il punto che vuoi eliminare.');
+  else status('Tocca i vertici; fai doppio clic per terminare.');
 }
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
 
@@ -712,6 +740,10 @@ $('mobPoint').onclick=()=>{
 
 function cadClick(e){
   if(!drawingMode)return;
+  if(drawingMode==='delete'){
+    status('Per eliminare, tocca direttamente un punto.');
+    return;
+  }
   const p={lat:e.latLng.lat(),lng:e.latLng.lng()};
   if(drawingMode==='point'){
     insertPoint(p);
