@@ -4,6 +4,8 @@
   "type": "module",
   "dependencies": {
     "proj4": "2.12.1",
-    "sharp": "0.33.5"
+    "sharp": "0.33.5",
+    "hyparquet": "1.31.3",
+    "hyparquet-compressors": "1.1.2"
   }
 }
