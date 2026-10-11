@@ -107,7 +107,7 @@ proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type
 proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
 proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],searchHighlights=[],precisionPointMode=false,precisionTargetOverlay=null,precisionTargetEl=null,appFullscreen=false;
+let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],searchHighlights=[],precisionPointMode=false,precisionTargetOverlay=null,precisionTargetEl=null,appFullscreen=false,gpsMarker=null,gpsAccuracyCircle=null,gpsWatchId=null,gpsLastPosition=null,gpsCenterOnNextFix=false;
 let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
 let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
 const WMS_GROUPS={
@@ -284,6 +284,7 @@ function activateCatasto(){
   setCatastoButtonState(true);
   updateDiag();
   status('Catasto ATTIVO · zoom consentito 17–22 · centro mantenuto.');
+  startGpsTracking(false);
 }
 
 function deactivateCatasto(){
@@ -496,7 +497,89 @@ $('searchParcel').onclick=searchCadastralParcel;
   $(id).addEventListener('keydown',e=>{if(e.key==='Enter')searchCadastralParcel()});
 });
 
-$('locate').onclick=()=>{if(!navigator.geolocation){status('GPS non disponibile.');return}status('Ricerca GPS…');navigator.geolocation.getCurrentPosition(p=>{const q={lat:p.coords.latitude,lng:p.coords.longitude};map.setCenter(q);map.setZoom(18);$('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(p.coords.accuracy)+' m';status('Mappa centrata sulla posizione GPS.')},e=>status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message)),{enableHighAccuracy:true,timeout:20000})};
+function updateGpsMarker(position,centerMap=false){
+  if(!map||!position?.coords)return;
+  const q={lat:position.coords.latitude,lng:position.coords.longitude};
+  const accuracy=Math.max(0,Number(position.coords.accuracy)||0);
+  gpsLastPosition=position;
+
+  if(!gpsAccuracyCircle){
+    gpsAccuracyCircle=new google.maps.Circle({
+      map,
+      clickable:false,
+      strokeColor:'#1976d2',
+      strokeOpacity:.65,
+      strokeWeight:1,
+      fillColor:'#1976d2',
+      fillOpacity:.08,
+      zIndex:99998
+    });
+  }
+  gpsAccuracyCircle.setMap(map);
+  gpsAccuracyCircle.setCenter(q);
+  gpsAccuracyCircle.setRadius(accuracy);
+
+  if(!gpsMarker){
+    gpsMarker=new google.maps.Marker({
+      map,
+      position:q,
+      clickable:false,
+      zIndex:99999,
+      title:'Posizione GPS',
+      icon:{
+        path:google.maps.SymbolPath.CIRCLE,
+        scale:7,
+        fillColor:'#1976d2',
+        fillOpacity:1,
+        strokeColor:'#ffffff',
+        strokeOpacity:1,
+        strokeWeight:3
+      }
+    });
+  }else{
+    gpsMarker.setMap(map);
+    gpsMarker.setPosition(q);
+  }
+
+  $('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(accuracy)+' m';
+  if(centerMap){
+    map.setCenter(q);
+    if(map.getZoom()<18)map.setZoom(18);
+    status('Posizione GPS visualizzata e mappa centrata.');
+  }else{
+    status('Posizione GPS aggiornata · precisione ±'+Math.round(accuracy)+' m.');
+  }
+}
+
+function gpsError(e){
+  gpsCenterOnNextFix=false;
+  status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message));
+}
+
+function startGpsTracking(centerMap=true){
+  if(!navigator.geolocation){status('GPS non disponibile.');return}
+  gpsCenterOnNextFix=gpsCenterOnNextFix||centerMap;
+  if(gpsLastPosition){
+    updateGpsMarker(gpsLastPosition,!!centerMap);
+    gpsCenterOnNextFix=false;
+  }
+  if(gpsWatchId!==null)return;
+  status('Attivazione posizione GPS…');
+  gpsWatchId=navigator.geolocation.watchPosition(
+    p=>{
+      const centerNow=gpsCenterOnNextFix;
+      gpsCenterOnNextFix=false;
+      updateGpsMarker(p,centerNow);
+    },
+    e=>{
+      gpsWatchId=null;
+      gpsError(e);
+    },
+    {enableHighAccuracy:true,timeout:20000,maximumAge:2000}
+  );
+}
+
+$('locate').onclick=()=>startGpsTracking(true);
 let pointSnapBusy=false;
 
 function metersPerPixelAt(lat){
