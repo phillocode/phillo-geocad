@@ -27,12 +27,28 @@ La password non deve mai essere inserita nel repository: `config/config.php` è 
 - gate `api/_auth.php` pronto per proteggere tutte le API future
 - sessione predefinita: 30 giorni
 
-## Prossima fase
+## Fase 2: frontend GeoCAD e Google Maps
 
-Dopo il test di login verranno portati in PHP, uno alla volta:
-1. configurazione Google Maps
-2. proxy Catasto
-3. ricerca particella
-4. snap catastale
-5. export TokNav SQLite/ZIP
-6. frontend completo GeoCAD
+La schermata GeoCAD completa è ora servita da `index.php` dietro login.
+Google Maps usa `api/maps-config.php`, anch'essa protetta dalla sessione.
+
+Nel file reale `config/config.php` inserisci la chiave browser Google Maps in:
+
+```php
+'google_maps_key' => 'LA_TUA_CHIAVE',
+```
+
+In Google Cloud autorizza almeno il referrer:
+
+```
+https://geocad.rilievogps.it/*
+```
+
+Durante questa fase Catasto e export TokNav sono volutamente disabilitati nella UI, così il test dell'hosting PHP non interferisce con la produzione Vercel.
+
+## Prossime fasi
+
+1. proxy Catasto
+2. ricerca particella
+3. snap catastale
+4. export TokNav SQLite/ZIP
