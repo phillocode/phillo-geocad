@@ -11,6 +11,7 @@ return [
         'phillo' => '$2y$12$SOSTITUIRE_CON_HASH_REALE',
     ],
 
-    // Verrà usata più avanti da api/maps-config.php.
+    // Chiave browser Google Maps. In Google Cloud limitarla a:
+    // https://geocad.rilievogps.it/*
     'google_maps_key' => '',
 ];
