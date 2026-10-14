@@ -9,8 +9,8 @@ if (geocad_is_logged_in()) {
 
 $error = '';
 $next = $_GET['next'] ?? $_POST['next'] ?? 'index.php';
-if (!is_string($next) || $next === '' || str_starts_with($next, 'http://') || str_starts_with($next, 'https://')) {
-    $next = 'index.php';
+if (!is_string($next) || $next === '' || str_starts_with($next, 'http://') || str_starts_with($next, 'https://') || str_starts_with($next, '//') || !str_starts_with($next, '/')) {
+    $next = '/index.php';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
