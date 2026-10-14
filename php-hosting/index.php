@@ -2,48 +2,1296 @@
 declare(strict_types=1);
 require_once __DIR__ . '/lib/auth.php';
 geocad_require_login();
-
-$checks = [
-    'PHP >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
-    'SQLite3' => extension_loaded('sqlite3'),
-    'PDO SQLite' => extension_loaded('pdo_sqlite'),
-    'cURL' => extension_loaded('curl'),
-    'ZIP' => extension_loaded('zip'),
-    'OpenSSL' => extension_loaded('openssl'),
-    'JSON' => extension_loaded('json'),
-    'GD' => extension_loaded('gd'),
-    '/tmp scrivibile' => is_writable(sys_get_temp_dir()),
-];
 ?>
 <!doctype html>
-<html lang="it">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Phillo GeoCAD · Hosting PHP</title>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phillo GeoCAD v12 True Reprojection</title>
 <style>
-body{margin:0;background:#101d26;color:#eef7f8;font:15px system-ui,Arial}.wrap{max-width:800px;margin:auto;padding:22px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center}.box{background:#142b35;border:1px solid #31515a;border-radius:12px;padding:18px;margin-top:18px}.ok{color:#65e0bd}.bad{color:#ff968e}button{padding:9px 12px;border:1px solid #4b7884;border-radius:7px;background:#244552;color:#fff}table{width:100%;border-collapse:collapse}td{padding:8px;border-bottom:1px solid #294650}</style>
-</head>
-<body><main class="wrap">
-<div class="top">
-  <div><h1 style="margin:0">Phillo GeoCAD</h1><div>Ambiente PHP protetto · fase 1</div></div>
-  <form method="post" action="logout.php">
-    <input type="hidden" name="csrf" value="<?= htmlspecialchars(geocad_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
-    <button>Esci</button>
-  </form>
-</div>
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,Arial;background:#101d26;color:#eef7f8}header{height:58px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#142b35;border-bottom:1px solid #31515a}.layout{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 58px)}aside{padding:15px;overflow:auto;border-right:1px solid #34505a}#map{height:100%;min-height:460px;position:relative}h1{font-size:19px;margin:0}h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9ec8d0;margin:18px 0 9px}.line{display:flex;align-items:center;gap:8px;margin:9px 0}button,input,select{font:inherit}button{background:#244552;color:#fff;border:1px solid #4b7884;padding:9px 10px;border-radius:7px;cursor:pointer}button:hover{background:#32606e}.full{width:100%;margin:4px 0}.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}.active{background:#0c948e!important;border-color:#52e5d3!important}input[type=text]{width:100%;padding:9px;border-radius:6px;border:1px solid #53727b;background:#17333e;color:#fff}.hint{font-size:12px;line-height:1.45;color:#aac3c8}.notice{background:#1b3943;border-left:3px solid #21c1b4;padding:10px;margin:12px 0;font-size:12px;line-height:1.45}.warn{border-left-color:#e6b34a}.status{position:absolute;left:335px;bottom:12px;background:#142b35ed;padding:8px 11px;border-radius:7px;z-index:10;max-width:calc(100% - 355px)}.keybox{background:#193640;padding:10px;border-radius:8px}.diag{font-size:11px;background:#0c1820;padding:9px;border-radius:7px;line-height:1.45;word-break:break-word}.ok{color:#6fe3c8}.bad{color:#ff9e96}@media(max-width:720px){.layout{grid-template-columns:1fr;height:auto}.status{position:fixed;left:8px;right:8px;bottom:8px;max-width:none}#map{height:62vh}aside{border-right:0}}
 
-<div class="box">
-  <strong>Accesso riuscito.</strong><br>
-  Utente: <?= htmlspecialchars((string)geocad_user(), ENT_QUOTES, 'UTF-8') ?><br>
-  Questa pagina serve a verificare login, sessione HTTPS e compatibilità del server prima di migrare la mappa e le API.
-</div>
+.map-command-control{margin:10px 0 0 10px;font:13px system-ui,Arial;user-select:none}.map-command-toggle{background:#142b35f2!important;border:1px solid #4b7884!important;color:#fff!important;border-radius:8px!important;padding:9px 12px!important;min-height:40px!important;box-shadow:0 2px 8px #0008}.map-command-panel{display:none;margin-top:6px;padding:7px;background:#142b35f2;border:1px solid #31515a;border-radius:10px;box-shadow:0 4px 18px #0009;grid-template-columns:repeat(2,minmax(92px,1fr));gap:6px;max-width:230px}.map-command-panel.open{display:grid}.map-command-panel button{min-height:40px;padding:8px 7px;font-size:12px;white-space:nowrap}.map-command-panel button.active{background:#0c948e!important;border-color:#52e5d3!important}.precision-target{display:none;position:absolute;width:42px;height:42px;transform:translate(-50%,-50%);z-index:99999;pointer-events:none}.precision-target.show{display:block}.precision-target.fullscreen-fixed{position:fixed!important;left:50vw!important;top:50vh!important;z-index:2147483647!important}.precision-target i{position:absolute;display:block;background:#ffea00;box-shadow:0 0 1px #000}.precision-target .pt-top{left:20.5px;top:0;width:1px;height:18px}.precision-target .pt-bottom{left:20.5px;bottom:0;width:1px;height:18px}.precision-target .pt-left{left:0;top:20.5px;width:18px;height:1px}.precision-target .pt-right{right:0;top:20.5px;width:18px;height:1px}.precision-panel{display:none;margin-bottom:84px;background:#142b35f2;border:1px solid #4b7884;border-radius:11px;padding:6px;gap:6px;box-shadow:0 4px 18px #0009}.precision-panel.show{display:flex}.precision-panel button{min-height:44px;padding:9px 13px}.precision-panel .place{background:#0c948e;border-color:#52e5d3}.precision-panel .finish{background:#315b78;border-color:#72a7c7}.precision-panel .cancel{background:#3d4950}
 
-<div class="box">
-  <h2>Requisiti server</h2>
-  <table>
-  <?php foreach ($checks as $name => $state): ?>
-    <tr><td><?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?></td><td class="<?= $state ? 'ok':'bad' ?>"><?= $state ? 'OK':'ATTENZIONE' ?></td></tr>
-  <?php endforeach; ?>
-  </table>
+.mobilebar,.mobile-backdrop{display:none}
+@media(max-width:720px){
+  body{overflow:hidden}
+  header{height:48px;padding:0 12px;position:relative;z-index:60}
+  header h1{font-size:16px}
+  header h1 small,header>small{display:none}
+  .layout{display:block;height:calc(100dvh - 48px)}
+  #map{height:100%;min-height:0}
+  aside{
+    position:fixed;top:48px;bottom:0;left:0;width:min(88vw,340px);z-index:55;
+    background:#101d26;border-right:1px solid #34505a;padding:12px 14px 104px;
+    transform:translateX(-105%);transition:transform .18s ease;box-shadow:8px 0 24px #0008
+  }
+  aside.mobile-open{transform:translateX(0)}
+  .mobile-hide{display:none!important}
+  .mobile-backdrop{
+    display:block;position:fixed;inset:48px 0 0 0;background:#0007;z-index:50;
+    opacity:0;pointer-events:none;transition:opacity .18s ease
+  }
+  .mobile-backdrop.open{opacity:1;pointer-events:auto}
+  .mobilebar{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:5px;position:fixed;
+    left:7px;right:7px;bottom:7px;z-index:70;padding:6px;background:#142b35f2;
+    border:1px solid #31515a;border-radius:12px;box-shadow:0 5px 24px #0009
+  }
+  .mobilebar button{
+    min-width:0;padding:8px 3px 7px;border-radius:8px;font-size:11px;
+    display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.15
+  }
+  .mobilebar .ico{font-size:18px;line-height:1}
+  .status{
+    position:fixed;left:8px;right:8px;bottom:76px;max-width:none;z-index:40;
+    padding:7px 9px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  }
+  aside h2{margin-top:14px}
+  .keybox{padding:9px}
+  button{min-height:42px}
+  input[type=text]{min-height:42px;font-size:16px}
+}
+
+
+body.app-fullscreen{overflow:hidden}
+body.app-fullscreen header,
+body.app-fullscreen aside,
+body.app-fullscreen .mobilebar,
+body.app-fullscreen .mobile-backdrop{display:none!important}
+body.app-fullscreen .layout{display:block!important;height:100dvh!important}
+body.app-fullscreen #map{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;z-index:80!important}
+body.app-fullscreen .status{display:none!important}
+body.app-fullscreen .map-command-control{z-index:100!important}
+body.precision-drawing .mobilebar,
+body.precision-drawing .map-command-control{display:none!important}
+
+.header-actions{display:flex;align-items:center;gap:10px}.header-actions form{margin:0}.logout-btn{min-height:auto;padding:7px 9px;font-size:12px;background:#1b3943}@media(max-width:720px){.header-actions>small{display:none}.logout-btn{padding:6px 8px}}
+</style></head><body>
+<header><h1>◈ Phillo GeoCAD <small>· PHP Hosting Test</small></h1><div class="header-actions"><small>Google · GPS · CAD</small><form method="post" action="logout.php"><input type="hidden" name="csrf" value="<?= htmlspecialchars(geocad_csrf_token(), ENT_QUOTES, 'UTF-8') ?>"><button class="logout-btn" type="submit">Esci</button></form></div></header>
+<div class="layout"><aside id="sidepanel">
+<div class="mobile-hide"><h2>Google Maps</h2><div class="keybox"><div id="mapskeyinfo" class="hint">Chiave caricata automaticamente dal server; protezione tramite restrizioni dominio/API.</div></div></div>
+<h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
+<h2 id="searchSection">Ricerca</h2>
+<div class="keybox">
+  <div id="searchModeLabel" class="hint" style="margin-bottom:7px"><b>Ricerca Google</b></div>
+  <div id="googleSearchBox">
+    <input id="googleQuery" type="text" placeholder="Indirizzo o località" disabled>
+    <button id="searchGoogle" class="full" disabled>Cerca su Google</button>
+    <div id="googleSearchInfo" class="hint">Cerca un indirizzo o una località sulla base Google.</div>
+  </div>
+  <div id="catastoSearchBox" style="display:none">
+    <input id="searchComune" type="text" placeholder="Comune (es. Busto Arsizio o B300)" disabled>
+    <div class="tools" style="margin-top:7px">
+      <input id="searchFoglio" type="text" inputmode="numeric" placeholder="Foglio" disabled>
+      <input id="searchParticella" type="text" placeholder="Particella" disabled>
+    </div>
+    <button id="searchParcel" class="full" disabled>Cerca e centra</button>
+    <div id="searchInfo" class="hint">Inserisci Comune, Foglio e Particella.</div>
+  </div>
 </div>
-</main></body></html>
+<h2>Catasto</h2><button id="catastoBtn" class="full" disabled>Catasto · OFF</button><label class="line">Opacità <input id="opacity" type="range" min="0" max="100" value="95" disabled><span id="opval">95%</span></label>
+<div class="hint mobile-hide">La v12 invia al proxy le coordinate tile x/y/z: il server riproietta realmente il raster catastale UTM nella griglia Web Mercator di Google, mantenendo retry e cache CDN.</div>
+<div id="diag" class="diag mobile-hide">Diagnostica WMS: non avviata.</div>
+<h2>GPS</h2><button id="locate" class="full" disabled>◎ La mia posizione</button><div id="gpsinfo" class="hint">Dopo il caricamento puoi centrare la mappa sul GPS.</div>
+<h2>Disegno CAD</h2><div class="tools"><button data-tool="point" disabled>⊕ Punto</button><button data-tool="line" disabled>╱ Linea</button><button data-tool="polygon" disabled>⬡ Poligono</button><button data-tool="delete" disabled>⌫ Elimina punto</button><button id="clear" disabled>⌫ Cancella tutto</button></div><div id="count" class="hint">0 elementi</div>
+<h2>Esportazione TOKNAV</h2><button id="toknavProject" class="full" disabled>Esporta progetto TokNav</button><div id="toknavInfo" class="hint">Da smartphone prova a salvare direttamente nella cartella T Survey 2.0 / Project.</div><button id="csv" class="full" disabled>Esporta punti CSV</button><button id="dxf" class="full" disabled>Esporta disegno DXF</button><button id="geojson" class="full" disabled>Salva GeoJSON</button>
+<div class="notice mobile-hide"><b>Correzione v12.</b> True reprojection lato server: ogni pixel della tile Google viene trasformato in UTM, campionato dal WMS catastale e restituito nella posizione Web Mercator corretta. Le API Catasto saranno attivate dopo il porting PHP.</div>
+<div class="notice warn mobile-hide"><b>Nota tecnica.</b> La v12 non stira più un rettangolo UTM dentro la tile Google: esegue un ricampionamento raster geometrico sul server, così i bordi delle tile condividono la stessa griglia globale.</div>
+<div class="hint mobile-hide" style="margin-top:12px">© Agenzia delle Entrate · Cartografia catastale (CC BY 4.0)<br>Indice di ricerca Comune/Foglio/Particella: dati resi disponibili da OnData (CC BY 4.0).</div></aside><div id="map"></div></div>
+<div id="mobileBackdrop" class="mobile-backdrop"></div>
+<nav class="mobilebar" aria-label="Comandi rapidi">
+  <button id="mobSearch" disabled><span class="ico">⌕</span><span>Cerca</span></button>
+  <button id="mobCatasto" disabled><span class="ico">▱</span><span>Catasto</span></button>
+  <button id="mobGps" disabled><span class="ico">◎</span><span>Posizione</span></button>
+  <button id="mobPoint" disabled><span class="ico">⊕</span><span>Punto</span></button>
+  <button id="mobMenu" disabled><span class="ico">☰</span><span>Menu</span></button>
+</nav>
+<div id="status" class="status">Caricamento Google Maps…</div>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.12.1/dist/proj4.js"></script>
+<script>
+proj4.defs('EPSG:3857','+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs');
+proj4.defs('EPSG:25832','+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs');
+proj4.defs('EPSG:25833','+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs');
+proj4.defs('EPSG:25834','+proj=utm +zone=34 +ellps=GRS80 +units=m +no_defs +type=crs');
+proj4.defs('EPSG:32632','+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
+let map=null,geocoder=null,cadOverlay=null,drawingMode=null,tempPath=[],tempPolyline=null,features=[],searchHighlights=[],precisionPointMode=false,precisionTargetOverlay=null,precisionTargetEl=null,appFullscreen=false,gpsMarker=null,gpsAccuracyCircle=null,gpsWatchId=null,gpsLastPosition=null,gpsCenterOnNextFix=false;
+let cadOpacity=.95,tileLoads=0,tileErrors=0,proxyRequests=0,serverRetries=0,reprojectedResponses=0,cacheHits=0,cacheMisses=0,cacheUnknown=0,lastTileUrl='',lastZoom=0,lastGroup='—';
+let groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
+const WMS_GROUPS={
+  base:['acque','strade'],
+  detail17:['CP.CadastralParcel','fabbricati'],
+  detail18:['CP.CadastralParcel','fabbricati','vestizioni']
+};
+const $=id=>document.getElementById(id),status=t=>$('status').textContent=t;
+const PHP_HOSTING_PHASE=2;
+function applyHostingPhase(){
+  if(PHP_HOSTING_PHASE!==2)return;
+  ['catastoBtn','mobCatasto','opacity','toknavProject'].forEach(id=>{
+    const el=$(id);
+    if(el){el.disabled=true;el.title='Funzione in migrazione verso il backend PHP';}
+  });
+  const cb=$('catastoBtn');
+  if(cb)cb.textContent='Catasto · prossima fase';
+  const ti=$('toknavInfo');
+  if(ti)ti.textContent='Export TokNav: verrà riattivato dopo il porting dell’API PHP/SQLite.';
+  const dg=$('diag');
+  if(dg)dg.innerHTML='Hosting PHP · fase 2: <span class="ok">Google Maps, GPS e CAD locale attivi</span><br>Catasto, ricerca catastale e TokNav saranno migrati nelle fasi successive.';
+  const root=$('mapCommandControl');
+  if(root){
+    root.querySelectorAll('button').forEach(b=>{
+      if(/Catasto|TokNav/.test(b.textContent||'')){
+        b.disabled=true;
+        b.title='Funzione in migrazione verso il backend PHP';
+      }
+    });
+  }
+}
+function enableUI(){document.querySelectorAll('button[disabled],input[disabled]').forEach(x=>x.disabled=false)}
+async function loadGoogle(){
+  if(window.google?.maps){initMap();return}
+  status('Caricamento configurazione Google Maps…');
+  try{
+    const r=await fetch('/api/maps-config.php',{cache:'no-store'});
+    if(!r.ok)throw new Error('Configurazione non disponibile');
+    const cfg=await r.json();
+    if(!cfg.key)throw new Error('Chiave Google Maps non configurata');
+    window.__philloInit=initMap;
+    const s=document.createElement('script');
+    s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(cfg.key)+'&callback=__philloInit&loading=async&auth_referrer_policy=origin';
+    s.async=true;
+    s.onerror=()=>status('Google Maps non è stato caricato. Controlla la configurazione della chiave.');
+    document.head.appendChild(s);
+    $('mapskeyinfo').textContent='Configurazione Google Maps caricata automaticamente.';
+    status('Caricamento Google Maps…');
+  }catch(e){
+    $('mapskeyinfo').textContent='Chiave Google Maps non configurata sul server.';
+    status('Google Maps: configurazione della chiave mancante.');
+  }
+}
+window.addEventListener('DOMContentLoaded',loadGoogle);
+function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:false,disableDoubleClickZoom:true});geocoder=new google.maps.Geocoder();enableUI();updateSearchMode();updateDiag();initMapCommandMenu();applyHostingPhase();initPrecisionPointMode();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(catastoActive&&map.getZoom()<17)status('Con Catasto attivo lo zoom minimo è 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
+function normX(x,z){const n=2**z;return ((x%n)+n)%n}
+function tileLonLatBounds(coord,z){const n=2**z,x=normX(coord.x,z),y=coord.y;const lon1=x/n*360-180,lon2=(x+1)/n*360-180;const latFromY=v=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*v/n)));const lat1=latFromY(y+1),lat2=latFromY(y);return {west:lon1,south:lat1,east:lon2,north:lat2}}
+function zoneForLon(lon){if(lon<12)return 32;if(lon<18)return 33;return 34}
+function proxyTileUrl(group,coord,z){
+  const x=normX(coord.x,z),y=coord.y;
+  const q=new URLSearchParams({group,x:String(x),y:String(y),z:String(z)});
+  lastTileUrl='/api/catasto.php?'+q.toString();
+  return lastTileUrl;
+}
+function updateDiag(){
+  const cls=tileErrors?'bad':'ok';
+  const mode=lastZoom<17?'Catasto non richiesto sotto zoom 17':('Zoom '+lastZoom+' · ultimo gruppo: '+lastGroup);
+  $('diag').innerHTML='Diagnostica WMS v12: <span class="'+cls+'">'+tileLoads+' tile complete · '+tileErrors+' errori finali</span><br>'+
+    'Proxy: '+proxyRequests+' richieste · retry server: '+serverRetries+' · riproiettate: '+reprojectedResponses+'<br>'+
+    'Cache server: HIT '+cacheHits+' · MISS '+cacheMisses+' · ? '+cacheUnknown+'<br>'+
+    'Base Acque/Strade: '+groupStats.base.ok+'/'+groupStats.base.err+' · Dettaglio: '+groupStats.detail.ok+'/'+groupStats.detail.err+'<br>'+
+    mode+'<br>Ultima richiesta: '+(lastTileUrl||'—');
+}
+function makeCadastreMapType(){
+  return {
+    tileSize:new google.maps.Size(256,256),maxZoom:22,minZoom:17,name:'Catasto',alt:'Catasto Agenzia Entrate',
+    getTile(coord,zoom,doc){
+      const div=doc.createElement('div');
+      div.style.cssText='width:256px;height:256px;position:relative;background:transparent;overflow:hidden';
+      lastZoom=zoom;
+      if(zoom<17){updateDiag();return div;}
+
+      const groups=[
+        {key:'base',proxy:'base',label:'Acque/Strade'},
+        {key:'detail',proxy:zoom>=18?'detail18':'detail17',label:zoom>=18?'Particelle/Fabbricati/Vestizioni':'Particelle/Fabbricati'}
+      ];
+      let pending=groups.length,tileFailed=false;
+      const settle=failed=>{
+        if(div._released)return;
+        if(failed)tileFailed=true;
+        pending--;
+        if(pending===0){
+          if(tileFailed)tileErrors++; else tileLoads++;
+          updateDiag();
+        }
+      };
+
+      groups.forEach((g,idx)=>{
+        const img=doc.createElement('img');
+        img.width=256;img.height=256;img.alt='';img.decoding='async';
+        img.style.cssText='position:absolute;inset:0;width:256px;height:256px;display:block;pointer-events:none;opacity:'+cadOpacity+';z-index:'+(idx+1);
+        div.appendChild(img);
+        const url=proxyTileUrl(g.proxy,coord,zoom);
+        lastGroup=g.label;
+        proxyRequests++;
+        updateDiag();
+
+        fetch(url)
+          .then(async response=>{
+            if(div._released)return null;
+            const attempts=parseInt(response.headers.get('x-phillo-upstream-attempts')||'1',10);
+            if(Number.isFinite(attempts)&&attempts>1)serverRetries+=attempts-1;
+            const vc=(response.headers.get('x-vercel-cache')||'').toUpperCase();
+            if(vc==='HIT')cacheHits++;
+            else if(vc==='MISS'||vc==='STALE'||vc==='BYPASS')cacheMisses++;
+            else cacheUnknown++;
+            if((response.headers.get('x-phillo-reprojected')||'').toLowerCase()==='true')reprojectedResponses++;
+            if(!response.ok)throw new Error('Proxy HTTP '+response.status);
+            const type=response.headers.get('content-type')||'';
+            if(!type.includes('image'))throw new Error('Risposta proxy non immagine');
+            return response.blob();
+          })
+          .then(blob=>{
+            if(!blob||div._released)return;
+            const objectUrl=URL.createObjectURL(blob);
+            img.onload=()=>{URL.revokeObjectURL(objectUrl);groupStats[g.key].ok++;settle(false)};
+            img.onerror=()=>{URL.revokeObjectURL(objectUrl);groupStats[g.key].err++;settle(true)};
+            img.src=objectUrl;
+          })
+          .catch(()=>{
+            if(div._released)return;
+            groupStats[g.key].err++;
+            settle(true);
+          });
+      });
+      return div;
+    },
+    releaseTile(tile){
+      tile._released=true;
+      while(tile.firstChild)tile.removeChild(tile.firstChild);
+    }
+  };
+}
+function installCadastre(){cadOverlay=makeCadastreMapType();map.overlayMapTypes.insertAt(0,cadOverlay);updateDiag()}
+let catastoActive=false,previousBaseType='roadmap',previousStyles=null,previousMinZoom=null,previousMaxZoom=null;
+
+function resetCadStats(){
+  tileLoads=0;tileErrors=0;proxyRequests=0;serverRetries=0;reprojectedResponses=0;
+  cacheHits=0;cacheMisses=0;cacheUnknown=0;lastTileUrl='';lastGroup='—';
+  groupStats={base:{ok:0,err:0},detail:{ok:0,err:0}};
+}
+
+function updateSearchMode(){
+  const googleBox=$('googleSearchBox');
+  const catastoBox=$('catastoSearchBox');
+  const label=$('searchModeLabel');
+  if(!googleBox||!catastoBox||!label)return;
+  googleBox.style.display=catastoActive?'none':'block';
+  catastoBox.style.display=catastoActive?'block':'none';
+  label.innerHTML=catastoActive?'<b>Ricerca catastale</b>':'<b>Ricerca Google</b>';
+}
+
+function setCatastoButtonState(on){
+  catastoActive=on;
+  const b=$('catastoBtn');
+  b.classList.toggle('active',on);
+  b.textContent=on?'Catasto · ATTIVO':'Catasto · OFF';
+  const mb=$('mobCatasto');
+  if(mb)mb.classList.toggle('active',on);
+  updateSearchMode();
+  syncMapCommandState();
+}
+
+function activateCatasto(){
+  if(!map)return;
+  const center=map.getCenter();
+  previousBaseType=map.getMapTypeId()||'roadmap';
+  previousStyles=map.get('styles')||null;
+  previousMinZoom=map.get('minZoom')??null;
+  previousMaxZoom=map.get('maxZoom')??null;
+
+  resetCadStats();
+  map.overlayMapTypes.clear();
+  cadOverlay=makeCadastreMapType();
+  map.overlayMapTypes.insertAt(0,cadOverlay);
+
+  map.setMapTypeId('roadmap');
+  map.setOptions({
+    styles:[{featureType:'all',stylers:[{visibility:'off'}]}],
+    minZoom:17,
+    maxZoom:22
+  });
+
+  map.setZoom(17);
+  if(center)map.setCenter(center);
+
+  setCatastoButtonState(true);
+  updateDiag();
+  status('Catasto ATTIVO · zoom consentito 17–22 · centro mantenuto.');
+  startGpsTracking(false);
+}
+
+function deactivateCatasto(){
+  if(!map)return;
+  const center=map.getCenter();
+  map.overlayMapTypes.clear();
+  map.setOptions({
+    styles:previousStyles,
+    minZoom:previousMinZoom,
+    maxZoom:previousMaxZoom
+  });
+  map.setMapTypeId(previousBaseType||'roadmap');
+  if(center)map.setCenter(center);
+  setCatastoButtonState(false);
+  updateDiag();
+  status('Catasto spento · base e limiti zoom precedenti ripristinati.');
+}
+
+function toggleCatasto(){
+  if(catastoActive)deactivateCatasto();
+  else activateCatasto();
+}
+
+$('catastoBtn').onclick=toggleCatasto;
+$('opacity').oninput=e=>{
+  cadOpacity=+e.target.value/100;
+  $('opval').textContent=e.target.value+'%';
+  if(catastoActive)activateCatasto();
+};
+
+$('sat').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setOptions({styles:null});
+  map.setMapTypeId('satellite');
+};
+$('road').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setOptions({styles:null});
+  map.setMapTypeId('roadmap');
+};
+$('hybrid').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setOptions({styles:null});
+  map.setMapTypeId('hybrid');
+};
+$('none').onclick=()=>{
+  if(catastoActive)deactivateCatasto();
+  map.setMapTypeId('roadmap');
+  map.setOptions({styles:[{featureType:'all',stylers:[{visibility:'off'}]}]});
+  status('Base Google nascosta.');
+};
+
+async function searchGoogleMap(){
+  const query=$('googleQuery').value.trim();
+  if(!query){
+    $('googleSearchInfo').textContent='Inserisci un indirizzo o una località.';
+    status('Ricerca Google: testo mancante.');
+    return;
+  }
+  if(!geocoder){
+    status('Ricerca Google non disponibile.');
+    return;
+  }
+
+  const btn=$('searchGoogle');
+  btn.disabled=true;
+  btn.textContent='Ricerca…';
+  $('googleSearchInfo').textContent='Ricerca su Google in corso…';
+  clearParcelHighlight();
+
+  try{
+    const results=await new Promise((resolve,reject)=>{
+      geocoder.geocode({address:query},(res,st)=>{
+        if(st==='OK'&&res?.length)resolve(res);
+        else reject(new Error(st==='ZERO_RESULTS'?'Nessun risultato trovato.':'Ricerca Google non disponibile: '+st));
+      });
+    });
+
+    const result=results[0];
+    const loc=result.geometry.location;
+    if(result.geometry.viewport){
+      map.fitBounds(result.geometry.viewport);
+    }else{
+      map.setCenter(loc);
+      map.setZoom(18);
+    }
+    $('googleSearchInfo').textContent=result.formatted_address||query;
+    status('Mappa centrata sul risultato Google: '+(result.formatted_address||query));
+    if(window.innerWidth<=720)setMobileDrawer(false);
+  }catch(e){
+    $('googleSearchInfo').textContent=e.message;
+    status('Ricerca Google: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Cerca su Google';
+  }
+}
+
+$('searchGoogle').onclick=searchGoogleMap;
+$('googleQuery').addEventListener('keydown',e=>{if(e.key==='Enter')searchGoogleMap()});
+
+function clearParcelHighlight(){
+  searchHighlights.forEach(x=>x.setMap(null));
+  searchHighlights=[];
+}
+
+function highlightParcel(data){
+  clearParcelHighlight();
+  const bounds=new google.maps.LatLngBounds();
+
+  if(Array.isArray(data.paths)&&data.paths.length){
+    data.paths.forEach(path=>{
+      const clean=(path||[])
+        .filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)))
+        .map(p=>({lat:Number(p.lat),lng:Number(p.lng)}));
+      if(clean.length<3)return;
+      clean.forEach(p=>bounds.extend(p));
+      searchHighlights.push(new google.maps.Polygon({
+        paths:clean,
+        map,
+        strokeColor:'#ffea00',
+        strokeOpacity:1,
+        strokeWeight:4,
+        fillColor:'#ffea00',
+        fillOpacity:.20,
+        clickable:false,
+        zIndex:50
+      }));
+    });
+  }
+
+  if(!searchHighlights.length&&data.bounds){
+    const b={
+      south:Number(data.bounds.south),
+      west:Number(data.bounds.west),
+      north:Number(data.bounds.north),
+      east:Number(data.bounds.east)
+    };
+    if(Object.values(b).every(Number.isFinite)){
+      bounds.extend({lat:b.south,lng:b.west});
+      bounds.extend({lat:b.north,lng:b.east});
+      searchHighlights.push(new google.maps.Rectangle({
+        bounds:b,
+        map,
+        strokeColor:'#ffea00',
+        strokeOpacity:1,
+        strokeWeight:4,
+        fillColor:'#ffea00',
+        fillOpacity:.12,
+        clickable:false,
+        zIndex:50
+      }));
+    }
+  }
+
+  return !bounds.isEmpty();
+}
+
+async function searchCadastralParcel(){
+  const comune=$('searchComune').value.trim();
+  const foglio=$('searchFoglio').value.trim();
+  const particella=$('searchParticella').value.trim();
+  if(!comune||!foglio||!particella){
+    $('searchInfo').textContent='Compila Comune, Foglio e Particella.';
+    status('Ricerca catastale: dati incompleti.');
+    return;
+  }
+
+  const btn=$('searchParcel');
+  btn.disabled=true;
+  btn.textContent='Ricerca…';
+  $('searchInfo').textContent='Interrogazione del Catasto in corso…';
+  clearParcelHighlight();
+  status('Ricerca catastale in corso…');
+
+  try{
+    const q=new URLSearchParams({comune,foglio,particella});
+    const r=await fetch('/api/cerca-particella.php?'+q.toString(),{cache:'no-store'});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){
+      let msg=data.error||('Errore HTTP '+r.status);
+      if(data.options?.length){
+        msg+=': '+data.options.map(x=>x.name+' ('+x.code+')').join(', ');
+      }else if(data.matches?.length){
+        msg+=': '+data.matches.join(', ');
+      }
+      throw new Error(msg);
+    }
+
+    if(!catastoActive)activateCatasto();
+    const p={lat:Number(data.center.lat),lng:Number(data.center.lng)};
+    map.setCenter(p);
+    highlightParcel(data);
+
+    const label=(data.comune?.name||comune)+' ('+(data.comune?.code||'')+') · Foglio '+foglio+' · Particella '+particella;
+    $('searchInfo').textContent=label+' · '+data.ref;
+    status('Particella trovata, centrata ed evidenziata: '+label);
+    if(window.innerWidth<=720)setMobileDrawer(false);
+  }catch(e){
+    $('searchInfo').textContent=e.message;
+    status('Ricerca catastale: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Cerca e centra';
+  }
+}
+
+$('searchParcel').onclick=searchCadastralParcel;
+['searchComune','searchFoglio','searchParticella'].forEach(id=>{
+  $(id).addEventListener('keydown',e=>{if(e.key==='Enter')searchCadastralParcel()});
+});
+
+function updateGpsMarker(position,centerMap=false){
+  if(!map||!position?.coords)return;
+  const q={lat:position.coords.latitude,lng:position.coords.longitude};
+  const accuracy=Math.max(0,Number(position.coords.accuracy)||0);
+  gpsLastPosition=position;
+
+  if(!gpsAccuracyCircle){
+    gpsAccuracyCircle=new google.maps.Circle({
+      map,
+      clickable:false,
+      strokeColor:'#1976d2',
+      strokeOpacity:.65,
+      strokeWeight:1,
+      fillColor:'#1976d2',
+      fillOpacity:.08,
+      zIndex:99998
+    });
+  }
+  gpsAccuracyCircle.setMap(map);
+  gpsAccuracyCircle.setCenter(q);
+  gpsAccuracyCircle.setRadius(accuracy);
+
+  if(!gpsMarker){
+    gpsMarker=new google.maps.Marker({
+      map,
+      position:q,
+      clickable:false,
+      zIndex:99999,
+      title:'Posizione GPS',
+      icon:{
+        path:google.maps.SymbolPath.CIRCLE,
+        scale:7,
+        fillColor:'#1976d2',
+        fillOpacity:1,
+        strokeColor:'#ffffff',
+        strokeOpacity:1,
+        strokeWeight:3
+      }
+    });
+  }else{
+    gpsMarker.setMap(map);
+    gpsMarker.setPosition(q);
+  }
+
+  $('gpsinfo').textContent=q.lat.toFixed(6)+', '+q.lng.toFixed(6)+' ±'+Math.round(accuracy)+' m';
+  if(centerMap){
+    map.setCenter(q);
+    if(map.getZoom()<18)map.setZoom(18);
+    status('Posizione GPS visualizzata e mappa centrata.');
+  }else{
+    status('Posizione GPS aggiornata · precisione ±'+Math.round(accuracy)+' m.');
+  }
+}
+
+function gpsError(e){
+  gpsCenterOnNextFix=false;
+  status('GPS: '+({1:'permesso negato',2:'posizione non disponibile',3:'tempo scaduto'}[e.code]||e.message));
+}
+
+function startGpsTracking(centerMap=true){
+  if(!navigator.geolocation){status('GPS non disponibile.');return}
+  gpsCenterOnNextFix=gpsCenterOnNextFix||centerMap;
+  if(gpsLastPosition){
+    updateGpsMarker(gpsLastPosition,!!centerMap);
+    gpsCenterOnNextFix=false;
+  }
+  if(gpsWatchId!==null)return;
+  status('Attivazione posizione GPS…');
+  gpsWatchId=navigator.geolocation.watchPosition(
+    p=>{
+      const centerNow=gpsCenterOnNextFix;
+      gpsCenterOnNextFix=false;
+      updateGpsMarker(p,centerNow);
+    },
+    e=>{
+      gpsWatchId=null;
+      gpsError(e);
+    },
+    {enableHighAccuracy:true,timeout:20000,maximumAge:2000}
+  );
+}
+
+$('locate').onclick=()=>startGpsTracking(true);
+let pointSnapBusy=false;
+
+function metersPerPixelAt(lat){
+  const z=map?.getZoom?.()||18;
+  return 156543.03392*Math.cos(lat*Math.PI/180)/Math.pow(2,z);
+}
+
+function snapToleranceMeters(p){
+  return Math.max(0.4,Math.min(8,metersPerPixelAt(p.lat)*10));
+}
+
+function localXY(p,ref){
+  const kx=111320*Math.cos(ref.lat*Math.PI/180),ky=110540;
+  return {x:(p.lng-ref.lng)*kx,y:(p.lat-ref.lat)*ky};
+}
+
+function fromLocalXY(v,ref){
+  const kx=111320*Math.cos(ref.lat*Math.PI/180),ky=110540;
+  return {lat:ref.lat+v.y/ky,lng:ref.lng+v.x/kx};
+}
+
+function cadSnapPaths(){
+  const out=[];
+  features.filter(f=>f.type==='line'||f.type==='polygon').forEach(f=>{
+    let path=[];
+    if(f.obj?.getPath){
+      f.obj.getPath().forEach(ll=>path.push({lat:ll.lat(),lng:ll.lng()}));
+    }else{
+      path=(f.path||[]).map(p=>({lat:p.lat,lng:p.lng}));
+    }
+    if(f.type==='polygon'&&path.length>2){
+      const a=path[0],b=path[path.length-1];
+      if(a.lat!==b.lat||a.lng!==b.lng)path.push({...a});
+    }
+    if(path.length>1)out.push(path);
+  });
+  return out;
+}
+
+async function cadastralSnapPaths(p,radius){
+  if(!catastoActive)return [];
+  try{
+    const q=new URLSearchParams({
+      lat:p.lat.toFixed(8),
+      lng:p.lng.toFixed(8),
+      radius:radius.toFixed(2)
+    });
+    const r=await fetch('/api/snap-catasto.php?'+q.toString(),{cache:'no-store'});
+    if(!r.ok)return [];
+    const data=await r.json();
+    return Array.isArray(data.paths)?data.paths:[];
+  }catch{
+    return [];
+  }
+}
+
+function nearestSnapCandidate(p,paths,tolerance){
+  const ref=p;
+  const vertices=[];
+  const segments=[];
+
+  paths.forEach((path,pathIndex)=>{
+    const clean=(path||[]).filter(q=>Number.isFinite(Number(q.lat))&&Number.isFinite(Number(q.lng)))
+      .map(q=>({lat:Number(q.lat),lng:Number(q.lng)}));
+    clean.forEach((q,i)=>{
+      const v=localXY(q,ref);
+      vertices.push({q,v,pathIndex,index:i});
+    });
+    for(let i=0;i+1<clean.length;i++){
+      const a=localXY(clean[i],ref),b=localXY(clean[i+1],ref);
+      segments.push({a,b,qa:clean[i],qb:clean[i+1],pathIndex,index:i,count:clean.length-1});
+    }
+  });
+
+  const d2=v=>v.x*v.x+v.y*v.y;
+  const tol2=tolerance*tolerance;
+  let bestIntersection=null,bestIntersectionD2=Infinity;
+
+  const cross=(a,b)=>a.x*b.y-a.y*b.x;
+  for(let i=0;i<segments.length;i++){
+    const s1=segments[i];
+    for(let j=i+1;j<segments.length;j++){
+      const s2=segments[j];
+      if(s1.pathIndex===s2.pathIndex){
+        const adjacent=Math.abs(s1.index-s2.index)<=1||
+          (s1.index===0&&s2.index===s1.count-1)||
+          (s2.index===0&&s1.index===s2.count-1);
+        if(adjacent)continue;
+      }
+      const r={x:s1.b.x-s1.a.x,y:s1.b.y-s1.a.y};
+      const s={x:s2.b.x-s2.a.x,y:s2.b.y-s2.a.y};
+      const den=cross(r,s);
+      if(Math.abs(den)<1e-9)continue;
+      const qp={x:s2.a.x-s1.a.x,y:s2.a.y-s1.a.y};
+      const t=cross(qp,s)/den,u=cross(qp,r)/den;
+      if(t<-1e-8||t>1+1e-8||u<-1e-8||u>1+1e-8)continue;
+      const v={x:s1.a.x+t*r.x,y:s1.a.y+t*r.y};
+      const dd=d2(v);
+      if(dd<=tol2&&dd<bestIntersectionD2){
+        bestIntersectionD2=dd;
+        bestIntersection=v;
+      }
+    }
+  }
+  if(bestIntersection){
+    return {position:fromLocalXY(bestIntersection,ref),type:'incrocio',distance:Math.sqrt(bestIntersectionD2)};
+  }
+
+  let bestVertex=null,bestVertexD2=Infinity;
+  vertices.forEach(v=>{
+    const dd=d2(v.v);
+    if(dd<=tol2&&dd<bestVertexD2){bestVertexD2=dd;bestVertex=v.v}
+  });
+  if(bestVertex){
+    return {position:fromLocalXY(bestVertex,ref),type:'vertice',distance:Math.sqrt(bestVertexD2)};
+  }
+
+  let bestLine=null,bestLineD2=Infinity;
+  segments.forEach(seg=>{
+    const vx=seg.b.x-seg.a.x,vy=seg.b.y-seg.a.y;
+    const len2=vx*vx+vy*vy;
+    if(len2<1e-12)return;
+    let t=-(seg.a.x*vx+seg.a.y*vy)/len2;
+    t=Math.max(0,Math.min(1,t));
+    const v={x:seg.a.x+t*vx,y:seg.a.y+t*vy};
+    const dd=d2(v);
+    if(dd<=tol2&&dd<bestLineD2){bestLineD2=dd;bestLine=v}
+  });
+  if(bestLine){
+    return {position:fromLocalXY(bestLine,ref),type:'linea',distance:Math.sqrt(bestLineD2)};
+  }
+
+  return {position:p,type:null,distance:null};
+}
+
+async function snapPosition(p){
+  const tolerance=snapToleranceMeters(p);
+  const paths=cadSnapPaths();
+  const catPaths=await cadastralSnapPaths(p,tolerance*1.35);
+  paths.push(...catPaths);
+  const result=nearestSnapCandidate(p,paths,tolerance);
+  result.tolerance=tolerance;
+  return result;
+}
+
+function snapStatus(prefix,snap){
+  if(!snap.type)return prefix+' senza aggancio.';
+  return prefix+' agganciato a '+snap.type+' · scarto '+snap.distance.toFixed(2)+' m.';
+}
+
+async function insertPoint(raw){
+  if(pointSnapBusy)return;
+  pointSnapBusy=true;
+  status(catastoActive?'Ricerca aggancio su linee catastali/CAD…':'Ricerca aggancio sulle linee CAD…');
+  try{
+    const snap=await snapPosition(raw);
+    const p=snap.position;
+    const obj=new google.maps.Marker({
+      position:p,
+      map,
+      label:String(features.filter(f=>f.type==='point').length+1),
+      draggable:true,
+      title:'Trascina per correggere la posizione; al rilascio viene applicato di nuovo lo snap'
+    });
+    const feature={type:'point',path:[p],obj};
+
+    obj.addListener('click',()=>{
+      if(drawingMode==='delete'){
+        deletePointFeature(feature);
+        return;
+      }
+      const pointIndex=features.filter(f=>f.type==='point').indexOf(feature)+1;
+      if(pointIndex>0)status('Punto '+pointIndex+' selezionato · trascinalo per spostarlo oppure usa "Elimina punto".');
+    });
+    obj.addListener('dragstart',()=>status('Sposta il punto e rilascialo: verrà cercato nuovamente lo snap.'));
+    obj.addListener('drag',e=>{
+      const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
+      status('Posizione provvisoria: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
+    });
+    obj.addListener('dragend',async e=>{
+      const rawDrop={lat:e.latLng.lat(),lng:e.latLng.lng()};
+      status('Ricerca aggancio nella nuova posizione…');
+      const moved=await snapPosition(rawDrop);
+      obj.setPosition(moved.position);
+      feature.path[0]=moved.position;
+      status(snapStatus('Punto aggiornato',moved));
+    });
+
+    features.push(feature);
+    updateCount();
+    status(snapStatus('Punto inserito',snap));
+  }finally{
+    pointSnapBusy=false;
+  }
+}
+
+function renumberPointMarkers(){
+  let n=1;
+  features.filter(f=>f.type==='point').forEach(f=>{
+    if(f.obj?.setLabel)f.obj.setLabel(String(n++));
+  });
+}
+
+function deletePointFeature(feature){
+  if(!feature||feature.type!=='point')return;
+  const pointIndex=features.filter(f=>f.type==='point').indexOf(feature)+1;
+  if(pointIndex<1)return;
+  if(!confirm('Eliminare il punto '+pointIndex+'?'))return;
+  if(feature.obj?.setMap)feature.obj.setMap(null);
+  const idx=features.indexOf(feature);
+  if(idx>=0)features.splice(idx,1);
+  renumberPointMarkers();
+  updateCount();
+  status('Punto '+pointIndex+' eliminato.');
+}
+
+function setTool(t){
+  drawingMode=t;
+  tempPath=[];
+  if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}
+  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  const mp=$('mobPoint');
+  if(mp)mp.classList.toggle('active',t==='point');
+
+  const precisionTool=(t==='point'||t==='line'||t==='polygon')&&window.innerWidth<=720;
+  if(precisionTool){
+    setPrecisionPointMode(true);
+  }else{
+    setPrecisionPointMode(false);
+    if(t==='point')status('Tocca la mappa: snap automatico a incrocio/vertice o linea vicina.');
+    else if(t==='delete')status('Tocca il punto che vuoi eliminare.');
+    else status('Tocca i vertici; fai doppio clic per terminare.');
+  }
+  syncMapCommandState();
+}
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+
+
+function setAppFullscreen(on){
+  appFullscreen=!!on;
+  document.body.classList.toggle('app-fullscreen',appFullscreen);
+  const btn=document.querySelector('[data-cmd="fullscreen"]');
+  if(btn)btn.textContent=appFullscreen?'↙ Esci schermo':'⛶ Schermo';
+  requestAnimationFrame(()=>{
+    if(map){
+      google.maps.event.trigger(map,'resize');
+      const center=map.getCenter();
+      if(center)map.setCenter(center);
+    }
+    if(precisionTargetOverlay)precisionTargetOverlay.draw();
+  });
+  status(appFullscreen?'Mappa a tutto schermo · nessun popup del browser.':'Vista normale ripristinata.');
+}
+function toggleAppFullscreen(){if(!appFullscreen)setMobileDrawer(false);setAppFullscreen(!appFullscreen)}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&appFullscreen)setAppFullscreen(false);
+});
+
+function initMapCommandMenu(){
+  if(!map||$('mapCommandControl'))return;
+  const wrap=document.createElement('div');
+  wrap.id='mapCommandControl';
+  wrap.className='map-command-control';
+
+  const toggle=document.createElement('button');
+  toggle.type='button';
+  toggle.className='map-command-toggle';
+  toggle.textContent='☰ Comandi';
+  wrap.appendChild(toggle);
+
+  const panel=document.createElement('div');
+  panel.className='map-command-panel';
+  wrap.appendChild(panel);
+
+  const addButton=(label,handler,key)=>{
+    const b=document.createElement('button');
+    b.type='button';
+    b.textContent=label;
+    if(key)b.dataset.cmd=key;
+    b.onclick=e=>{e.stopPropagation();handler();syncMapCommandState();};
+    panel.appendChild(b);
+    return b;
+  };
+
+  addButton('⊕ Punto',()=>setTool('point'),'point');
+  addButton('⌫ Elimina',()=>setTool('delete'),'delete');
+  addButton('╱ Linea',()=>setTool('line'),'line');
+  addButton('⬡ Poligono',()=>setTool('polygon'),'polygon');
+  addButton('▱ Catasto',()=>toggleCatasto(),'catasto');
+  addButton('◎ Posizione',()=>$('locate').click());
+  addButton('⛶ Schermo',()=>toggleAppFullscreen(),'fullscreen');
+  addButton('⇩ TokNav',()=>exportTokNavProject());
+  addButton('⌫ Tutto',()=>$('clear').click());
+
+  toggle.onclick=e=>{
+    e.stopPropagation();
+    panel.classList.toggle('open');
+    syncMapCommandState();
+  };
+  wrap.addEventListener('click',e=>e.stopPropagation());
+  map.controls[google.maps.ControlPosition.TOP_LEFT].push(wrap);
+}
+
+function syncMapCommandState(){
+  const root=$('mapCommandControl');
+  if(!root)return;
+  root.querySelectorAll('[data-cmd]').forEach(b=>{
+    const key=b.dataset.cmd;
+    const on=key==='catasto'?catastoActive:key==='fullscreen'?appFullscreen:key===drawingMode;
+    b.classList.toggle('active',!!on);
+  });
+}
+
+function initPrecisionPointMode(){
+  if(!map||precisionTargetOverlay)return;
+
+  const target=document.createElement('div');
+  target.id='precisionTarget';
+  target.className='precision-target';
+  target.innerHTML='<i class="pt-top"></i><i class="pt-bottom"></i><i class="pt-left"></i><i class="pt-right"></i>';
+  precisionTargetEl=target;
+
+  const overlay=new google.maps.OverlayView();
+  overlay.onAdd=()=>{
+    const panes=overlay.getPanes();
+    if(panes?.floatPane)panes.floatPane.appendChild(target);
+  };
+  overlay.draw=()=>{
+    if(!map)return;
+    const fs=document.fullscreenElement||document.webkitFullscreenElement||null;
+    if(fs){
+      target.style.left='50vw';
+      target.style.top='50vh';
+      return;
+    }
+    const projection=overlay.getProjection();
+    const center=map.getCenter();
+    if(!projection||!center)return;
+    const px=projection.fromLatLngToDivPixel(center);
+    if(!px)return;
+    target.style.left=px.x+'px';
+    target.style.top=px.y+'px';
+  };
+  overlay.onRemove=()=>{
+    if(target.parentNode)target.parentNode.removeChild(target);
+  };
+  overlay.setMap(map);
+  precisionTargetOverlay=overlay;
+
+  map.addListener('center_changed',()=>{
+    if(precisionTargetOverlay)precisionTargetOverlay.draw();
+  });
+  map.addListener('bounds_changed',()=>{
+    if(precisionTargetOverlay)precisionTargetOverlay.draw();
+  });
+  const syncPrecisionTargetFullscreen=()=>{
+    const fs=document.fullscreenElement||document.webkitFullscreenElement||null;
+    if(fs){
+      if(target.parentNode!==fs)fs.appendChild(target);
+      target.classList.add('fullscreen-fixed');
+    }else{
+      target.classList.remove('fullscreen-fixed');
+      const panes=overlay.getPanes();
+      if(panes?.floatPane&&target.parentNode!==panes.floatPane)panes.floatPane.appendChild(target);
+    }
+    requestAnimationFrame(()=>{
+      if(map)google.maps.event.trigger(map,'resize');
+      if(precisionTargetOverlay)precisionTargetOverlay.draw();
+    });
+  };
+  document.addEventListener('fullscreenchange',syncPrecisionTargetFullscreen);
+  document.addEventListener('webkitfullscreenchange',syncPrecisionTargetFullscreen);
+
+  const panel=document.createElement('div');
+  panel.id='precisionPanel';
+  panel.className='precision-panel';
+
+  const place=document.createElement('button');
+  place.id='precisionPlace';
+  place.type='button';
+  place.className='place';
+  place.textContent='✓ Piazza qui';
+  place.onclick=async e=>{
+    e.stopPropagation();
+    if(!precisionPointMode||!map||!drawingMode)return;
+    const center=map.getCenter();
+    if(!center)return;
+    const raw={lat:center.lat(),lng:center.lng()};
+
+    if(drawingMode==='point'){
+      await insertPoint(raw);
+      status('Punto inserito. Sposta ancora la mappa sotto il mirino per il prossimo punto.');
+      return;
+    }
+
+    if(drawingMode==='line'||drawingMode==='polygon'){
+      status(catastoActive?'Ricerca aggancio del vertice su linee catastali/CAD…':'Ricerca aggancio del vertice sulle linee CAD…');
+      const snap=await snapPosition(raw);
+      tempPath.push(snap.position);
+      if(tempPolyline)tempPolyline.setMap(null);
+      tempPolyline=new google.maps.Polyline({
+        path:tempPath,
+        map,
+        strokeColor:'#ffcc00',
+        strokeWeight:3
+      });
+      const n=tempPath.length;
+      status(snapStatus('Vertice '+n+' inserito',snap)+' Premi “Termina” quando hai finito.');
+    }
+  };
+
+  const finish=document.createElement('button');
+  finish.id='precisionFinish';
+  finish.type='button';
+  finish.className='finish';
+  finish.textContent='✓ Termina';
+  finish.onclick=e=>{
+    e.stopPropagation();
+    if(drawingMode==='polygon'&&tempPath.length<3){
+      status('Il poligono richiede almeno 3 vertici.');
+      return;
+    }
+    if(drawingMode==='line'&&tempPath.length<2){
+      status('La linea richiede almeno 2 vertici.');
+      return;
+    }
+    finishShape();
+    if(drawingMode==='line')status('Linea salvata. Puoi iniziarne un’altra aggiungendo il primo vertice.');
+    else if(drawingMode==='polygon')status('Poligono salvato. Puoi iniziarne un altro aggiungendo il primo vertice.');
+  };
+
+  const cancel=document.createElement('button');
+  cancel.type='button';
+  cancel.className='cancel';
+  cancel.textContent='× Esci';
+  cancel.onclick=e=>{
+    e.stopPropagation();
+    setPrecisionPointMode(false);
+    if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}
+    tempPath=[];
+    drawingMode=null;
+    document.querySelectorAll('[data-tool]').forEach(b=>b.classList.remove('active'));
+    const mp=$('mobPoint');
+    if(mp)mp.classList.remove('active');
+    syncMapCommandState();
+    status('Disegno terminato.');
+  };
+
+  panel.appendChild(place);
+  panel.appendChild(finish);
+  panel.appendChild(cancel);
+  map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(panel);
+}
+
+function setPrecisionPointMode(on){
+  precisionPointMode=!!on && window.innerWidth<=720;
+  document.body.classList.toggle('precision-drawing',precisionPointMode);
+  const target=precisionTargetEl||$('precisionTarget');
+  const panel=$('precisionPanel');
+  const place=$('precisionPlace');
+  const finish=$('precisionFinish');
+
+  if(target)target.classList.toggle('show',precisionPointMode);
+  if(panel)panel.classList.toggle('show',precisionPointMode);
+  if(precisionTargetOverlay)precisionTargetOverlay.draw();
+
+  if(place){
+    place.textContent=drawingMode==='point'?'✓ Piazza qui':'＋ Aggiungi vertice';
+  }
+  if(finish){
+    finish.style.display=(drawingMode==='line'||drawingMode==='polygon')?'inline-block':'none';
+  }
+
+  if(precisionPointMode){
+    if(drawingMode==='point'){
+      status('Posizionamento preciso: trascina la mappa sotto il mirino e premi “Piazza qui”.');
+    }else if(drawingMode==='line'){
+      status('Linea precisa: centra il mirino e premi “Aggiungi vertice”; usa “Termina” dopo almeno 2 vertici.');
+    }else if(drawingMode==='polygon'){
+      status('Poligono preciso: centra il mirino e premi “Aggiungi vertice”; usa “Termina” dopo almeno 3 vertici.');
+    }
+  }
+}
+
+function setMobileDrawer(open,targetId){
+  const panel=$('sidepanel'),backdrop=$('mobileBackdrop');
+  if(!panel||!backdrop)return;
+  panel.classList.toggle('mobile-open',!!open);
+  backdrop.classList.toggle('open',!!open);
+  if(open&&targetId){
+    setTimeout(()=>{
+      const target=$(targetId);
+      if(target)target.scrollIntoView({block:'start',behavior:'smooth'});
+    },80);
+  }
+}
+$('mobileBackdrop').onclick=()=>setMobileDrawer(false);
+$('mobMenu').onclick=()=>setMobileDrawer(!$('sidepanel').classList.contains('mobile-open'));
+$('mobSearch').onclick=()=>{
+  setMobileDrawer(true,'searchSection');
+  setTimeout(()=>{
+    const el=catastoActive?$('searchComune'):$('googleQuery');
+    if(el)el.focus();
+  },220);
+};
+$('mobCatasto').onclick=()=>toggleCatasto();
+$('mobGps').onclick=()=>$('locate').click();
+$('mobPoint').onclick=()=>{
+  setTool('point');
+  setMobileDrawer(false);
+};
+
+function cadClick(e){
+  if(!drawingMode)return;
+  if(drawingMode==='delete'){
+    status('Per eliminare, tocca direttamente un punto.');
+    return;
+  }
+  if(precisionPointMode&&(drawingMode==='point'||drawingMode==='line'||drawingMode==='polygon')){
+    if(drawingMode==='point')status('Usa il mirino: trascina la mappa e premi “Piazza qui”.');
+    else status('Usa il mirino: trascina la mappa e premi “Aggiungi vertice”.');
+    return;
+  }
+  const p={lat:e.latLng.lat(),lng:e.latLng.lng()};
+  if(drawingMode==='point'){
+    insertPoint(p);
+    return;
+  }
+  tempPath.push(p);
+  if(tempPolyline)tempPolyline.setMap(null);
+  tempPolyline=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3});
+}
+mapDblHandler=()=>finishShape();document.getElementById('map').addEventListener('dblclick',()=>setTimeout(finishShape,0));
+function finishShape(){
+  if(!drawingMode||drawingMode==='point'||drawingMode==='delete')return;
+  if(drawingMode==='line'&&tempPath.length<2)return;
+  if(drawingMode==='polygon'&&tempPath.length<3)return;
+  if(tempPolyline)tempPolyline.setMap(null);
+  let obj;
+  if(drawingMode==='polygon'){
+    obj=new google.maps.Polygon({paths:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,fillColor:'#ffcc00',fillOpacity:.16,editable:true});
+  }else{
+    obj=new google.maps.Polyline({path:tempPath,map,strokeColor:'#ffcc00',strokeWeight:3,editable:true});
+  }
+  features.push({type:drawingMode,path:[...tempPath],obj});
+  tempPath=[];
+  tempPolyline=null;
+  updateCount();
+}
+function updateCount(){$('count').textContent=features.length+' elementi'}
+$('clear').onclick=()=>{features.forEach(f=>f.obj.setMap(null));features=[];updateCount();status('Disegni cancellati.')};
+function utm(p){return proj4('EPSG:4326','EPSG:32632',[p.lng,p.lat])}function dl(name,text,type='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+function safeProjectName(v){
+  return String(v||'').trim()
+    .replace(/[\\/:*?"<>|]+/g,'_')
+    .replace(/\s+/g,'_')
+    .replace(/[^A-Za-z0-9._-]/g,'_')
+    .replace(/^[._]+|[._]+$/g,'')
+    .slice(0,60)||'GeoCAD_Project';
+}
+
+function base64Bytes(s){
+  const bin=atob(s),out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
+  return out;
+}
+
+async function writeTokNavFiles(root,data){
+  let projectDir;
+  try{
+    projectDir=await root.getDirectoryHandle(data.projectName);
+    if(!confirm('Il progetto '+data.projectName+' esiste già. Sovrascrivere i file GeoCAD?'))return false;
+  }catch{
+    projectDir=await root.getDirectoryHandle(data.projectName,{create:true});
+  }
+
+  for(const file of data.files){
+    const parts=file.path.split('/').filter(Boolean);
+    const filename=parts.pop();
+    let dir=projectDir;
+    for(const part of parts)dir=await dir.getDirectoryHandle(part,{create:true});
+    const handle=await dir.getFileHandle(filename,{create:true});
+    const writable=await handle.createWritable();
+    await writable.write(base64Bytes(file.base64));
+    await writable.close();
+  }
+  return true;
+}
+
+async function exportTokNavProject(){
+  const pointFeatures=features.filter(f=>f.type==='point'&&f.path?.[0]);
+  if(!pointFeatures.length){
+    $('toknavInfo').textContent='Inserisci almeno un punto prima di esportare.';
+    status('TokNav: nessun punto da esportare.');
+    return;
+  }
+
+  let directory=null;
+  let directError='';
+
+  if(typeof window.showDirectoryPicker==='function'){
+    try{
+      status('Seleziona T Survey 2.0 / Project…');
+      directory=await window.showDirectoryPicker({mode:'readwrite'});
+    }catch(e){
+      if(e?.name==='AbortError'){
+        status('Selezione cartella annullata.');
+        return;
+      }
+      directError=(e?.name||'Errore')+(e?.message?': '+e.message:'');
+      console.warn('TokNav direct folder export unavailable',e);
+    }
+  }else{
+    directError='Il browser non espone showDirectoryPicker';
+  }
+
+  const d=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const suggested='GeoCAD_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+  const entered=prompt('Nome del progetto TokNav',suggested);
+  if(entered===null)return;
+  const projectName=safeProjectName(entered);
+
+  const points=pointFeatures.map((f,i)=>{
+    const p=f.path[0],q=utm(p);
+    return {name:'GEO'+(i+1),lat:p.lat,lng:p.lng,e:q[0],n:q[1],h:0};
+  });
+  const payload=JSON.stringify({projectName,points});
+
+  const btn=$('toknavProject');
+  btn.disabled=true;
+  btn.textContent='Creazione progetto…';
+
+  try{
+    if(directory){
+      const r=await fetch('/api/export-toknav.php?mode=files',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:payload,
+        cache:'no-store'
+      });
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(data.error||('Errore HTTP '+r.status));
+      const written=await writeTokNavFiles(directory,data);
+      if(!written){
+        status('Esportazione TokNav annullata.');
+        return;
+      }
+      $('toknavInfo').textContent='Progetto '+data.projectName+' scritto nella cartella selezionata · '+points.length+' punti.';
+      status('Progetto TokNav salvato direttamente: '+data.projectName+' · '+points.length+' punti.');
+      if(window.innerWidth<=720)setMobileDrawer(false);
+    }else{
+      const r=await fetch('/api/export-toknav.php?mode=zip',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:payload,
+        cache:'no-store'
+      });
+      if(!r.ok){
+        const data=await r.json().catch(()=>({}));
+        throw new Error(data.error||('Errore HTTP '+r.status));
+      }
+      const blob=await r.blob();
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=projectName+'.zip';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+      $('toknavInfo').textContent='Scrittura diretta non disponibile ('+directError+'). Creato '+projectName+'.zip.';
+      status('TokNav: browser senza accesso diretto alla cartella; creato ZIP.');
+    }
+  }catch(e){
+    $('toknavInfo').textContent='Errore: '+e.message;
+    status('Esportazione TokNav: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Esporta progetto TokNav';
+  }
+}
+$('toknavProject').onclick=exportTokNavProject;
+
+$('csv').onclick=()=>{let s='NOME;EST;NORD;QUOTA\n',n=1;features.filter(f=>f.type==='point').forEach(f=>{const q=utm(f.path[0]);s+='P'+n+++';'+q[0].toFixed(3)+';'+q[1].toFixed(3)+';0.000\n'});dl('phillo_punti_toknav.csv',s,'text/csv')};
+$('dxf').onclick=()=>{let d='0\nSECTION\n2\nENTITIES\n';features.forEach(f=>{if(f.type==='point'){const q=utm(f.path[0]);d+='0\nPOINT\n8\nPUNTI\n10\n'+q[0]+'\n20\n'+q[1]+'\n30\n0\n'}else{d+='0\nLWPOLYLINE\n8\nCAD\n90\n'+f.path.length+'\n70\n'+(f.type==='polygon'?1:0)+'\n';f.path.forEach(p=>{const q=utm(p);d+='10\n'+q[0]+'\n20\n'+q[1]+'\n'})}});d+='0\nENDSEC\n0\nEOF\n';dl('phillo_geocad_toknav.dxf',d)};
+$('geojson').onclick=()=>{const gj={type:'FeatureCollection',features:features.map(f=>({type:'Feature',properties:{},geometry:{type:f.type==='point'?'Point':f.type==='line'?'LineString':'Polygon',coordinates:f.type==='point'?[f.path[0].lng,f.path[0].lat]:f.type==='polygon'?[f.path.map(p=>[p.lng,p.lat]).concat([[f.path[0].lng,f.path[0].lat]])]:f.path.map(p=>[p.lng,p.lat])}}))};dl('phillo_geocad.geojson',JSON.stringify(gj,null,2),'application/geo+json')};
+</script></body></html>
