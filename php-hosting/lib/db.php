@@ -40,8 +40,11 @@ function geocad_db_ready(): bool {
 
     try {
         $pdo = geocad_db();
-        $stmt = $pdo->query("SHOW TABLES LIKE 'users'");
-        return $ready = (bool)$stmt->fetchColumn();
+        foreach (['users','projects','password_resets','settings'] as $table) {
+            $stmt = $pdo->query("SHOW TABLES LIKE " . $pdo->quote($table));
+            if (!$stmt->fetchColumn()) return $ready = false;
+        }
+        return $ready = true;
     } catch (Throwable $e) {
         return $ready = false;
     }
