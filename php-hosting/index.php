@@ -2,6 +2,8 @@
 declare(strict_types=1);
 require_once __DIR__ . '/lib/auth.php';
 geocad_require_login();
+$currentUser = geocad_current_user();
+$isAdmin = geocad_is_admin();
 ?>
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -64,11 +66,17 @@ body.app-fullscreen .map-command-control{z-index:100!important}
 body.precision-drawing .mobilebar,
 body.precision-drawing .map-command-control{display:none!important}
 
-.header-actions{display:flex;align-items:center;gap:10px}.header-actions form{margin:0}.logout-btn{min-height:auto;padding:7px 9px;font-size:12px;background:#1b3943}@media(max-width:720px){.header-actions>small{display:none}.logout-btn{padding:6px 8px}}
+.header-actions{display:flex;align-items:center;gap:8px}.header-actions form{margin:0}.header-link,.logout-btn{min-height:auto;padding:7px 9px;font-size:12px;background:#1b3943;border:1px solid #4b7884;border-radius:7px;color:#fff;text-decoration:none}.user-chip{font-size:12px;color:#b9d6da}.project-row{display:grid;grid-template-columns:1fr auto;gap:7px;margin:7px 0}.project-row select,.project-row input{width:100%;min-width:0;padding:9px;border-radius:6px;border:1px solid #53727b;background:#17333e;color:#fff}.project-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.project-meta{margin-top:7px;font-size:12px;color:#aac3c8}@media(max-width:720px){.header-actions>small,.user-chip,.admin-link{display:none}.header-link,.logout-btn{padding:6px 7px}.project-actions{grid-template-columns:1fr 1fr}}
 </style></head><body>
-<header><h1>◈ Phillo GeoCAD <small>· PHP Hosting Test</small></h1><div class="header-actions"><small>Google · GPS · CAD</small><form method="post" action="logout.php"><input type="hidden" name="csrf" value="<?= htmlspecialchars(geocad_csrf_token(), ENT_QUOTES, 'UTF-8') ?>"><button class="logout-btn" type="submit">Esci</button></form></div></header>
+<header><h1>◈ Phillo GeoCAD</h1><div class="header-actions"><span class="user-chip"><?= htmlspecialchars((string)($currentUser['username'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span><?php if($isAdmin): ?><a class="header-link admin-link" href="/admin/">Amministrazione</a><?php endif; ?><form method="post" action="/logout.php"><input type="hidden" name="csrf" value="<?= htmlspecialchars(geocad_csrf_token(), ENT_QUOTES, 'UTF-8') ?>"><button class="logout-btn" type="submit">Esci</button></form></div></header>
 <div class="layout"><aside id="sidepanel">
-<div class="mobile-hide"><h2>Google Maps</h2><div class="keybox"><div id="mapskeyinfo" class="hint">Chiave caricata automaticamente dal server; protezione tramite restrizioni dominio/API.</div></div></div>
+<h2>Progetti</h2>
+<div class="keybox">
+  <div class="project-row"><input id="projectName" type="text" maxlength="120" placeholder="Nome progetto"><button id="projectSave" disabled>Salva</button></div>
+  <div class="project-row"><select id="projectList" disabled><option value="">Nessun progetto salvato</option></select><button id="projectOpen" disabled>Apri</button></div>
+  <div class="project-actions"><button id="projectNew" disabled>Nuovo</button><button id="projectDelete" disabled>Elimina salvato</button></div>
+  <div id="projectInfo" class="project-meta">Caricamento progetti…</div>
+</div>
 <h2>Base cartografica</h2><div class="tools"><button id="sat" disabled>Satellite</button><button id="road" disabled>Stradale</button><button id="none" disabled>Nessuna base</button><button id="hybrid" disabled>Ibrida</button></div>
 <h2 id="searchSection">Ricerca</h2>
 <div class="keybox">
@@ -122,6 +130,8 @@ const WMS_GROUPS={
   detail18:['CP.CadastralParcel','fabbricati','vestizioni']
 };
 const $=id=>document.getElementById(id),status=t=>$('status').textContent=t;
+const PROJECT_CSRF=<?= json_encode(geocad_csrf_token(), JSON_UNESCAPED_SLASHES) ?>;
+let currentProjectId=null,currentProjectLimit=1,currentProjectCount=0;
 const PHP_HOSTING_PHASE=2;
 function applyHostingPhase(){
   if(PHP_HOSTING_PHASE!==2)return;
@@ -160,14 +170,12 @@ async function loadGoogle(){
     s.async=true;
     s.onerror=()=>status('Google Maps non è stato caricato. Controlla la configurazione della chiave.');
     document.head.appendChild(s);
-    $('mapskeyinfo').textContent='Configurazione Google Maps caricata automaticamente.';
     status('Caricamento Google Maps…');
   }catch(e){
-    $('mapskeyinfo').textContent='Chiave Google Maps non configurata sul server.';
     status('Google Maps: configurazione della chiave mancante.');
   }
 }
-window.addEventListener('DOMContentLoaded',loadGoogle);
+window.addEventListener('DOMContentLoaded',()=>{loadProjectList();loadGoogle();});
 function initMap(){map=new google.maps.Map($('map'),{center:{lat:44.39,lng:7.55},zoom:18,mapTypeId:'roadmap',streetViewControl:false,mapTypeControl:false,fullscreenControl:false,disableDoubleClickZoom:true});geocoder=new google.maps.Geocoder();enableUI();updateSearchMode();updateDiag();initMapCommandMenu();applyHostingPhase();initPrecisionPointMode();map.addListener('click',cadClick);map.addListener('zoom_changed',()=>{if(catastoActive&&map.getZoom()<17)status('Con Catasto attivo lo zoom minimo è 17.');});status('Google caricato. Vista stradale, zoom 18; Catasto spento all’avvio.');}
 function normX(x,z){const n=2**z;return ((x%n)+n)%n}
 function tileLonLatBounds(coord,z){const n=2**z,x=normX(coord.x,z),y=coord.y;const lon1=x/n*360-180,lon2=(x+1)/n*360-180;const latFromY=v=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*v/n)));const lat1=latFromY(y+1),lat2=latFromY(y);return {west:lon1,south:lat1,east:lon2,north:lat2}}
@@ -759,52 +767,55 @@ function snapStatus(prefix,snap){
   return prefix+' agganciato a '+snap.type+' · scarto '+snap.distance.toFixed(2)+' m.';
 }
 
+function createPointFeature(p){
+  const obj=new google.maps.Marker({
+    position:p,
+    map,
+    label:String(features.filter(f=>f.type==='point').length+1),
+    draggable:true,
+    title:'Trascina per correggere la posizione; al rilascio viene applicato di nuovo lo snap'
+  });
+  const feature={type:'point',path:[p],obj};
+
+  obj.addListener('click',()=>{
+    if(drawingMode==='delete'){
+      deletePointFeature(feature);
+      return;
+    }
+    const pointIndex=features.filter(f=>f.type==='point').indexOf(feature)+1;
+    if(pointIndex>0)status('Punto '+pointIndex+' selezionato · trascinalo per spostarlo oppure usa "Elimina punto".');
+  });
+  obj.addListener('dragstart',()=>status('Sposta il punto e rilascialo: verrà cercato nuovamente lo snap.'));
+  obj.addListener('drag',e=>{
+    const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
+    status('Posizione provvisoria: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
+  });
+  obj.addListener('dragend',async e=>{
+    const rawDrop={lat:e.latLng.lat(),lng:e.latLng.lng()};
+    status('Ricerca aggancio nella nuova posizione…');
+    const moved=await snapPosition(rawDrop);
+    obj.setPosition(moved.position);
+    feature.path[0]=moved.position;
+    status(snapStatus('Punto aggiornato',moved));
+  });
+
+  features.push(feature);
+  return feature;
+}
+
 async function insertPoint(raw){
   if(pointSnapBusy)return;
   pointSnapBusy=true;
   status(catastoActive?'Ricerca aggancio su linee catastali/CAD…':'Ricerca aggancio sulle linee CAD…');
   try{
     const snap=await snapPosition(raw);
-    const p=snap.position;
-    const obj=new google.maps.Marker({
-      position:p,
-      map,
-      label:String(features.filter(f=>f.type==='point').length+1),
-      draggable:true,
-      title:'Trascina per correggere la posizione; al rilascio viene applicato di nuovo lo snap'
-    });
-    const feature={type:'point',path:[p],obj};
-
-    obj.addListener('click',()=>{
-      if(drawingMode==='delete'){
-        deletePointFeature(feature);
-        return;
-      }
-      const pointIndex=features.filter(f=>f.type==='point').indexOf(feature)+1;
-      if(pointIndex>0)status('Punto '+pointIndex+' selezionato · trascinalo per spostarlo oppure usa "Elimina punto".');
-    });
-    obj.addListener('dragstart',()=>status('Sposta il punto e rilascialo: verrà cercato nuovamente lo snap.'));
-    obj.addListener('drag',e=>{
-      const q={lat:e.latLng.lat(),lng:e.latLng.lng()};
-      status('Posizione provvisoria: '+q.lat.toFixed(7)+', '+q.lng.toFixed(7));
-    });
-    obj.addListener('dragend',async e=>{
-      const rawDrop={lat:e.latLng.lat(),lng:e.latLng.lng()};
-      status('Ricerca aggancio nella nuova posizione…');
-      const moved=await snapPosition(rawDrop);
-      obj.setPosition(moved.position);
-      feature.path[0]=moved.position;
-      status(snapStatus('Punto aggiornato',moved));
-    });
-
-    features.push(feature);
+    createPointFeature(snap.position);
     updateCount();
     status(snapStatus('Punto inserito',snap));
   }finally{
     pointSnapBusy=false;
   }
 }
-
 function renumberPointMarkers(){
   let n=1;
   features.filter(f=>f.type==='point').forEach(f=>{
@@ -1159,8 +1170,182 @@ function finishShape(){
   updateCount();
 }
 function updateCount(){$('count').textContent=features.length+' elementi'}
-$('clear').onclick=()=>{features.forEach(f=>f.obj.setMap(null));features=[];updateCount();status('Disegni cancellati.')};
+$('clear').onclick=()=>{clearDrawingSilently();status('Disegni cancellati.')};
 function utm(p){return proj4('EPSG:4326','EPSG:32632',[p.lng,p.lat])}function dl(name,text,type='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+function clearDrawingSilently(){
+  if(tempPolyline){tempPolyline.setMap(null);tempPolyline=null}
+  tempPath=[];
+  features.forEach(f=>f.obj?.setMap&&f.obj.setMap(null));
+  features=[];
+  updateCount();
+  renumberPointMarkers();
+}
+
+function liveFeatureData(f){
+  if(f.type==='point'){
+    const p=f.obj?.getPosition?f.obj.getPosition():null;
+    const q=p?{lat:p.lat(),lng:p.lng()}:f.path?.[0];
+    return q?{type:'point',path:[{lat:Number(q.lat),lng:Number(q.lng)}]}:null;
+  }
+  if((f.type==='line'||f.type==='polygon')&&f.obj?.getPath){
+    const path=f.obj.getPath().getArray().map(p=>({lat:p.lat(),lng:p.lng()}));
+    return {type:f.type,path};
+  }
+  return null;
+}
+
+function serializeCurrentProject(){
+  const center=map?.getCenter();
+  return {
+    version:1,
+    map:{
+      center:center?{lat:center.lat(),lng:center.lng()}:null,
+      zoom:map?.getZoom?.()||18,
+      mapTypeId:map?.getMapTypeId?.()||'roadmap'
+    },
+    features:features.map(liveFeatureData).filter(Boolean)
+  };
+}
+
+function restoreProjectData(data){
+  if(!map||!data||!Array.isArray(data.features))throw new Error('Dati progetto non validi');
+  clearDrawingSilently();
+
+  data.features.forEach(f=>{
+    if(!f||!Array.isArray(f.path)||!f.path.length)return;
+    const path=f.path.map(p=>({lat:Number(p.lat),lng:Number(p.lng)})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+    if(!path.length)return;
+
+    if(f.type==='point'){
+      createPointFeature(path[0]);
+    }else if(f.type==='line'&&path.length>=2){
+      const obj=new google.maps.Polyline({path,map,strokeColor:'#ffcc00',strokeWeight:3,editable:true});
+      features.push({type:'line',path:[...path],obj});
+    }else if(f.type==='polygon'&&path.length>=3){
+      const obj=new google.maps.Polygon({paths:path,map,strokeColor:'#ffcc00',strokeWeight:3,fillColor:'#ffcc00',fillOpacity:.16,editable:true});
+      features.push({type:'polygon',path:[...path],obj});
+    }
+  });
+
+  renumberPointMarkers();
+  updateCount();
+
+  const m=data.map||{};
+  if(m.mapTypeId&&['roadmap','satellite','hybrid','terrain'].includes(m.mapTypeId))map.setMapTypeId(m.mapTypeId);
+  if(Number.isFinite(Number(m.zoom)))map.setZoom(Number(m.zoom));
+  if(m.center&&Number.isFinite(Number(m.center.lat))&&Number.isFinite(Number(m.center.lng)))map.setCenter({lat:Number(m.center.lat),lng:Number(m.center.lng)});
+}
+
+async function projectApi(url='',options={}){
+  const r=await fetch('/api/projects.php'+url,{cache:'no-store',...options});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(data.error||('Errore HTTP '+r.status));
+  return data;
+}
+
+async function loadProjectList(selectId=currentProjectId){
+  const info=$('projectInfo'),list=$('projectList');
+  if(!info||!list)return;
+  try{
+    const data=await projectApi();
+    currentProjectLimit=Number(data.limit)||0;
+    currentProjectCount=Number(data.count)||0;
+    list.innerHTML='<option value="">— seleziona progetto —</option>';
+    (data.projects||[]).forEach(p=>{
+      const o=document.createElement('option');
+      o.value=String(p.id);
+      o.textContent=p.name;
+      if(Number(p.id)===Number(selectId))o.selected=true;
+      list.appendChild(o);
+    });
+    list.disabled=false;
+    $('projectSave').disabled=false;
+    $('projectOpen').disabled=false;
+    $('projectNew').disabled=false;
+    $('projectDelete').disabled=false;
+    info.textContent=currentProjectLimit===0
+      ? currentProjectCount+' progetti salvati · limite illimitato'
+      : currentProjectCount+' / '+currentProjectLimit+' progetti salvati';
+  }catch(e){
+    info.textContent='Progetti non disponibili: '+e.message;
+  }
+}
+
+async function saveCurrentProject(){
+  if(!map){status('Attendi il caricamento della mappa.');return}
+  const name=$('projectName').value.trim();
+  if(!name){$('projectName').focus();status('Inserisci il nome del progetto.');return}
+  try{
+    const data=await projectApi('',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':PROJECT_CSRF},
+      body:JSON.stringify({action:'save',id:currentProjectId,name,data:serializeCurrentProject()})
+    });
+    currentProjectId=data.project.id;
+    $('projectName').value=data.project.name;
+    await loadProjectList(currentProjectId);
+    status('Progetto “'+data.project.name+'” salvato.');
+  }catch(e){status('Salvataggio progetto: '+e.message)}
+}
+
+async function openSelectedProject(){
+  const id=Number($('projectList').value||0);
+  if(!id){status('Seleziona un progetto salvato.');return}
+  if(features.length&&!confirm('Aprire il progetto selezionato? Le modifiche non salvate sulla mappa verranno perse.'))return;
+  try{
+    const data=await projectApi('?id='+encodeURIComponent(id));
+    restoreProjectData(data.data);
+    currentProjectId=data.project.id;
+    $('projectName').value=data.project.name;
+    status('Progetto “'+data.project.name+'” aperto.');
+  }catch(e){status('Apertura progetto: '+e.message)}
+}
+
+function newLocalProject(){
+  if(currentProjectLimit>0&&currentProjectCount>=currentProjectLimit&&currentProjectId===null){
+    status('Hai raggiunto il limite di '+currentProjectLimit+' progetti. Apri un progetto esistente oppure chiedi all’amministratore di aumentare il limite.');
+    return;
+  }
+  if(features.length&&!confirm('Creare un nuovo progetto? Le modifiche non salvate sulla mappa verranno perse.'))return;
+  clearDrawingSilently();
+  currentProjectId=null;
+  $('projectList').value='';
+  $('projectName').value='';
+  $('projectName').focus();
+  status('Nuovo progetto: assegna un nome e premi Salva.');
+}
+
+async function deleteSelectedProject(){
+  const id=Number($('projectList').value||currentProjectId||0);
+  if(!id){status('Seleziona un progetto salvato da eliminare.');return}
+  const opt=[...$('projectList').options].find(o=>Number(o.value)===id);
+  const name=opt?.textContent||'progetto';
+  if(!confirm('Eliminare definitivamente “'+name+'”?'))return;
+  try{
+    await projectApi('',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':PROJECT_CSRF},
+      body:JSON.stringify({action:'delete',id})
+    });
+    if(Number(currentProjectId)===id){
+      currentProjectId=null;
+      $('projectName').value='';
+    }
+    await loadProjectList();
+    status('Progetto eliminato.');
+  }catch(e){status('Eliminazione progetto: '+e.message)}
+}
+
+$('projectSave').onclick=saveCurrentProject;
+$('projectOpen').onclick=openSelectedProject;
+$('projectNew').onclick=newLocalProject;
+$('projectDelete').onclick=deleteSelectedProject;
+$('projectList').onchange=()=>{
+  const id=Number($('projectList').value||0);
+  const opt=$('projectList').selectedOptions[0];
+  if(id&&opt)$('projectName').value=opt.textContent||'';
+};
 
 function safeProjectName(v){
   return String(v||'').trim()
