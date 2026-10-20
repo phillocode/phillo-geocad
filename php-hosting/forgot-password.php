@@ -25,8 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $hash = hash('sha256', $token);
                         $minutes = max(10, (int)(geocad_config()['password_reset_minutes'] ?? 30));
                         $pdo->prepare('DELETE FROM password_resets WHERE user_id=? OR expires_at < NOW()')->execute([(int)$user['id']]);
-                        $ins = $pdo->prepare('INSERT INTO password_resets (user_id,token_hash,expires_at) VALUES (?,?,DATE_ADD(NOW(), INTERVAL ? MINUTE))');
-                        $ins->execute([(int)$user['id'], $hash, $minutes]);
+                        $expiresAt = (new DateTimeImmutable('now'))->modify('+' . $minutes . ' minutes')->format('Y-m-d H:i:s');
+                        $ins = $pdo->prepare('INSERT INTO password_resets (user_id,token_hash,expires_at) VALUES (?,?,?)');
+                        $ins->execute([(int)$user['id'], $hash, $expiresAt]);
 
                         $base = rtrim((string)(geocad_config()['base_url'] ?? ''), '/');
                         if ($base === '') {
