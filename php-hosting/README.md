@@ -52,3 +52,63 @@ Durante questa fase Catasto e export TokNav sono volutamente disabilitati nella 
 2. ricerca particella
 3. snap catastale
 4. export TokNav SQLite/ZIP
+
+
+## Fase 3: utenti, amministrazione, reset password e progetti
+
+La versione PHP ora supporta:
+
+- utenti MySQL con ruoli `admin` e `user`
+- area `/admin/` per creare, modificare, disattivare utenti e impostare il limite progetti
+- limite progetti predefinito pari a 1; valore 0 = illimitato
+- accesso con username oppure email
+- flusso “Password dimenticata?” con link temporaneo via email
+- salvataggio, apertura ed eliminazione dei progetti dell'utente
+- memorizzazione di punti, linee, poligoni, centro mappa, zoom e base cartografica
+- rimozione del riquadro tecnico “Google Maps / Configurazione Google Maps”
+
+### Prima attivazione MySQL su cPanel
+
+1. In cPanel apri **Database MySQL / MySQL Database Wizard**.
+2. Crea un database dedicato, ad esempio `geocad`.
+3. Crea un utente MySQL dedicato con password robusta.
+4. Associa l'utente al database con **tutti i privilegi**.
+5. Nel file reale `config/config.php` aggiungi/compila:
+
+```php
+'base_url' => 'https://geocad.rilievogps.it',
+'password_reset_minutes' => 30,
+
+'database' => [
+    'host' => 'localhost',
+    'port' => 3306,
+    'name' => 'NOME_DATABASE_CPANEL',
+    'user' => 'UTENTE_DATABASE_CPANEL',
+    'password' => 'PASSWORD_DATABASE',
+    'charset' => 'utf8mb4',
+],
+
+'mail' => [
+    'from' => 'noreply@rilievogps.it',
+    'from_name' => 'Phillo GeoCAD',
+],
+```
+
+Mantieni anche la sezione `users` esistente durante questa prima migrazione: serve a riconoscere l'amministratore corrente prima della creazione delle tabelle.
+
+6. Accedi a GeoCAD con l'utente amministratore già esistente.
+7. Apri `https://geocad.rilievogps.it/install.php`.
+8. Inserisci l'email dell'amministratore e premi **Inizializza database**.
+9. Apri `/admin/` e configura gli altri utenti.
+
+Dopo l'inizializzazione, login, password e progetti vengono gestiti dal database.
+
+### Email di recupero password
+
+Il server usa la funzione PHP `mail()`. Configura come mittente una casella del dominio, ad esempio `noreply@rilievogps.it`, oppure sostituiscila con una casella esistente in `config.php`.
+
+Per sicurezza il sistema:
+- non rivela se un indirizzo email esiste
+- limita la generazione di nuovi token per lo stesso utente
+- salva solo l'hash del token di reset
+- usa link monouso con scadenza predefinita di 30 minuti
