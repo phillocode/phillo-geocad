@@ -1303,7 +1303,7 @@ async function openSelectedProject(){
 }
 
 function newLocalProject(){
-  if(currentProjectLimit>0&&currentProjectCount>=currentProjectLimit&&currentProjectId===null){
+  if(currentProjectLimit>0&&currentProjectCount>=currentProjectLimit){
     status('Hai raggiunto il limite di '+currentProjectLimit+' progetti. Apri un progetto esistente oppure chiedi all’amministratore di aumentare il limite.');
     return;
   }
