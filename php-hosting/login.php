@@ -41,13 +41,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <h1>Phillo GeoCAD</h1>
   <div class="sub">Accesso riservato</div>
   <?php if ($error): ?><div class="err"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
-  <label for="username">Utente</label>
+  <label for="username">Utente o email</label>
   <input id="username" name="username" autocomplete="username" required autofocus>
   <label for="password">Password</label>
   <input id="password" name="password" type="password" autocomplete="current-password" required>
   <input type="hidden" name="csrf" value="<?= htmlspecialchars(geocad_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <input type="hidden" name="next" value="<?= htmlspecialchars($next, ENT_QUOTES, 'UTF-8') ?>">
   <button type="submit">Accedi</button>
+  <p style="text-align:center;margin:16px 0 0"><a href="/forgot-password.php" style="color:#78ddd3">Password dimenticata?</a></p>
 </form>
 </body>
 </html>
